@@ -1,0 +1,121 @@
+import { z } from "zod";
+import { StructureDefinitionSchemaR4, ElementDefinitionSchemaR4 } from "./types/StructureDefinitions/r4";
+import { TypeNameUrlConverter } from "./nameConverter";
+
+type StructureDefinition = z.infer<typeof StructureDefinitionSchemaR4>;
+type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>;
+// Merge a base definition with a constraint definition
+const mergeDefinitions = (
+    base: StructureDefinition,
+    constraint: StructureDefinition
+): StructureDefinition => {
+    // Create a deep copy of base
+    const merged = JSON.parse(JSON.stringify(base)) as StructureDefinition;
+    let constraintDeepCopy = JSON.parse(JSON.stringify(constraint)) as StructureDefinition;
+
+    // Override with constraint properties
+    merged.id = constraint.id;
+    merged.name = constraint.name;
+    merged.url = constraint.url;
+    merged.version = constraint.version;
+    merged.derivation = constraint.derivation;
+
+    // Keep track of base's elements by path for faster lookups
+    const baseElementsByPath = new Map<string, ElementDefinition>();
+    if (merged.snapshot?.element) {
+        for (const element of merged.snapshot.element) {
+            if (element.path) {
+                baseElementsByPath.set(element.path, element);
+            }
+        }
+    }
+
+    // Apply constraints from the constraint definition
+    if (constraint.differential?.element) {
+        for (const constraintElement of constraint.differential.element) {
+            if (constraintElement.path) {
+                const baseElement = baseElementsByPath.get(constraintElement.path);
+                if (baseElement) {
+                    // Merge the constraint element into the base element
+                    // This will override properties in the base element with those from the constraint
+                    const mergedElement = { ...baseElement, ...constraintElement };
+                    baseElementsByPath.set(constraintElement.path, mergedElement);
+
+                    // Update the element in the snapshot
+                    if (merged.snapshot?.element) {
+                        const index = merged.snapshot.element.findIndex(el => el.path === constraintElement.path);
+                        if (index !== -1) {
+                            merged.snapshot.element[index] = mergedElement;
+                        }
+                    }
+                } else {
+                    // Add new element if it doesn't exist in the base
+                    if (merged.snapshot?.element) {
+                        merged.snapshot.element.push(constraintElement);
+                    } else {
+                        merged.snapshot = {
+                            element: [constraintElement]
+                        };
+                    }
+                    baseElementsByPath.set(constraintElement.path, constraintElement);
+                }
+            }
+        }
+    }
+
+    constraintDeepCopy.snapshot = merged.snapshot;
+    return constraintDeepCopy;
+};
+
+export const resolveConstraintChain = (
+    targetDefinition: StructureDefinition,
+    structureDefinitionMap: Map<string, StructureDefinition>,
+    typeNameUrlConverter: TypeNameUrlConverter
+): StructureDefinition => {
+    // Helper function to find the entire constraint chain
+    const findConstraintChain = (definition: StructureDefinition): StructureDefinition[] => {
+        const chain: StructureDefinition[] = [definition];
+
+        let currentDef = definition;
+        while (currentDef.derivation === "constraint" && currentDef.baseDefinition) {
+            const baseUri = currentDef.baseDefinition;
+            const baseId = typeNameUrlConverter.urlToTypeName(baseUri);
+
+            if (!baseId) {
+                throw new Error(`Base definition URL ${baseUri} could not be converted to a type name for ${currentDef.id}`);
+            }
+
+            const baseDef = structureDefinitionMap.get(baseId);
+            if (!baseDef) {
+                throw new Error(`Base definition ${baseId} not found for ${currentDef.id}`);
+            }
+
+            chain.push(baseDef);
+            currentDef = baseDef;
+        }
+
+        // Reverse to get from base specification to most specific constraint
+        return chain.reverse();
+    };
+
+    // Merge an entire constraint chain into a single definition
+    const mergeConstraintChain = (chain: StructureDefinition[]): StructureDefinition => {
+        if (chain.length === 1) return chain[0];
+
+        let result = chain[0]; // Start with the base specification
+
+        for (let i = 1; i < chain.length; i++) {
+            result = mergeDefinitions(result, chain[i]);
+        }
+
+        return result;
+    };
+    const constraintChain = findConstraintChain(targetDefinition);
+    const fullyMergedDefinition = mergeConstraintChain(constraintChain);
+    return fullyMergedDefinition;
+}
+
+// For testing purposes
+export const mergeDefinitionsForTest = {
+    mergeDefinitions,
+}
