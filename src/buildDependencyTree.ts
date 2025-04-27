@@ -1,4 +1,5 @@
 import { StructureDefinitionSchemaR4, ElementDefinitionSchemaR4 } from "./types/StructureDefinitions/r4";
+import { TypeNameUrlConverter } from "./nameConverter";
 import { z } from "zod";
 import { DependencyMap } from "./types/tree";
 
@@ -7,6 +8,7 @@ type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>;
 
 export const buildDependencyMap = (structureDefinitions: StructureDefinition[]) => {
     console.info(`Building dependency map for ${structureDefinitions.length} structure definitions...`)
+    const typeNameUrlConverter = new TypeNameUrlConverter(structureDefinitions);
     let dependencyMap: DependencyMap = {};
 
     for (const structureDefinition of structureDefinitions) {
@@ -26,7 +28,7 @@ export const buildDependencyMap = (structureDefinitions: StructureDefinition[]) 
         // Add baseDefinition as a dependency if it exists and has derivation="constraint"
         if (structureDefinition.derivation === "constraint" && structureDefinition.baseDefinition) {
             const baseUrl = structureDefinition.baseDefinition;
-            const baseId = baseUrl.split('/').pop() || baseUrl;
+            const baseId = typeNameUrlConverter.urlToTypeName(baseUrl) || baseUrl;
 
             if (!dependencyMap[id].includes(baseId)) {
                 dependencyMap[id].push(baseId);
