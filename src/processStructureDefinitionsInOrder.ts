@@ -2,11 +2,9 @@ import { z } from "zod";
 import { StructureDefinitionSchemaR4 } from "./types/StructureDefinitions/r4";
 import { buildDependencyMap } from "./buildDependencyTree";
 import {
-    constructZodSchemaCode,
-    typeNameToZodSchemaName,
-    LocalResourceLoader,
     generateZodSchemasWithDependencies
 } from "./constructZodSchemaCode";
+import { typeNameToZodSchemaName, TypeNameUrlConverter } from "./nameConverter";
 import { DependencyMap } from "./types/tree";
 import { PrimitiveTypeCodeMap } from "./types/primitiveTypeSchemaCodes";
 import * as fs from 'fs';
@@ -52,29 +50,57 @@ export const processStructureDefinitions = (
         fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    // Use the new dependency resolution and schema generation
-    const schemaResults = generateZodSchemasWithDependencies(
-        structureDefinitions,
-        primitiveTypeCodeMap
-    );
+    // Create schema subdirectory
+    const schemaDir = path.join(outputDir, 'schema');
+    if (!fs.existsSync(schemaDir)) {
+        fs.mkdirSync(schemaDir, { recursive: true });
+    }
 
     // Build dependency map for the index file ordering
     const dependencyMap = buildDependencyMap(structureDefinitions);
     const processingOrder = topologicalSort(dependencyMap);
-
+    const typeNameUrlConverter = new TypeNameUrlConverter(structureDefinitions);
     // Create a map of structure definitions by ID for quick lookup
     const structureDefinitionMap = new Map<string, StructureDefinition>();
     structureDefinitions.forEach(def => {
         structureDefinitionMap.set(def.id, def);
     });
 
+    const sortedStructureDefinitions = processingOrder.map(id => {
+        const structureDefinition = structureDefinitionMap.get(id)
+        if (!structureDefinition) {
+            throw new Error(`StructureDefinition ${id} not found`);
+        }
+        return structureDefinition
+    });
+
+    // Use the new dependency resolution and schema generation
+    const schemaResults = generateZodSchemasWithDependencies(
+        sortedStructureDefinitions,
+        primitiveTypeCodeMap
+    );
+
+    // For the profileMap - store constraint profiles mapping
+    const profileMap = new Map<string, string>();
+
     // Write each schema file
     for (const [id, schemaCode] of schemaResults.entries()) {
         try {
-            const filePath = path.join(outputDir, `${id}.ts`);
+            const filePath = path.join(schemaDir, `${id}.ts`);
             const writeStream = streamFactory(filePath);
             writeStream.write(schemaCode);
             writeStream.end();
+
+            // Get structure definition to check if it's a constraint
+            const structureDefinition = structureDefinitionMap.get(id);
+            if (structureDefinition && structureDefinition.derivation === "constraint") {
+                // Store the URL and schema name for the profile map
+                const baseDefinitionId = structureDefinition.snapshot?.element?.[0]?.path.split(".")[0] ||
+                    structureDefinition.differential?.element?.[0]?.path.split(".")[0];
+                const schemaName = `${typeNameToZodSchemaName(baseDefinitionId + "-" + id)}`;
+                profileMap.set(structureDefinition.url, schemaName);
+            }
+
             console.log(`Generated schema code for ${id}`);
         } catch (error) {
             console.error(`Error writing schema file for ${id}:`, error);
@@ -88,8 +114,24 @@ export const processStructureDefinitions = (
     // Use the topological sort ordering for the index file
     for (const id of processingOrder) {
         if (schemaResults.has(id)) {
-            const schemaName = typeNameToZodSchemaName(id);
-            indexFileContent += `export { ${schemaName} } from './${id}';\n`;
+            const structureDefinition = structureDefinitionMap.get(id)
+            if (!structureDefinition) {
+                throw new Error(`StructureDefinition ${id} not found`);
+            }
+            const isConstraint = structureDefinition.derivation === "constraint"
+            let schemaName = ""
+            if (isConstraint) {
+                const snapshotFirstElement = structureDefinition.snapshot?.element?.[0]
+                const differentialFirstElement = structureDefinition.differential?.element?.[0]
+                if (!snapshotFirstElement && !differentialFirstElement) {
+                    throw new Error(`Snapshot first element or differential first element not found for ${id}`);
+                }
+                const baseDefinitionId = snapshotFirstElement?.path.split(".")[0] || differentialFirstElement?.path.split(".")[0]
+                schemaName = `${typeNameToZodSchemaName(baseDefinitionId + "-" + id)}`
+            } else {
+                schemaName = typeNameToZodSchemaName(id);
+            }
+            indexFileContent += `export { ${schemaName} } from './schema/${id}';\n`;
         }
     }
 
@@ -99,6 +141,37 @@ export const processStructureDefinitions = (
     indexWriteStream.end();
 
     console.log('Generated index file for all schemas');
+
+    // Generate profileMap.ts file that maps URLs to schemas for constraint profiles
+    const profileMapFilePath = path.join(outputDir, 'profileMap.ts');
+    let profileMapContent = '// Generated profile map for constraint profiles\n\n';
+    profileMapContent += 'import { z } from "zod";\n';
+
+    // Import all constraint schemas
+    for (const [url, schemaName] of profileMap.entries()) {
+        const id = typeNameUrlConverter.urlToTypeName(url)
+        if (!id) {
+            throw new Error(`ID not found for ${url}`);
+        }
+        profileMapContent += `import { ${schemaName} } from './schema/${id}';\n`;
+    }
+
+    profileMapContent += '\n// Map of profile URLs to their schemas\n';
+    profileMapContent += 'export const profileMap = new Map<string, z.ZodType>([';
+
+    // Add entries to the map
+    for (const [url, schemaName] of profileMap.entries()) {
+        profileMapContent += `\n  ["${url}", ${schemaName}],`;
+    }
+
+    profileMapContent += '\n]);\n';
+
+    // Write profileMap file using stream
+    const profileMapWriteStream = streamFactory(profileMapFilePath);
+    profileMapWriteStream.write(profileMapContent);
+    profileMapWriteStream.end();
+
+    console.log('Generated profile map for constraint profiles');
 };
 
 /**

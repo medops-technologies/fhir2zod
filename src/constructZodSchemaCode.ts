@@ -1,9 +1,10 @@
 import { initializePrimitiveTypeSchemasCodes, PrimitiveTypeCodeMap } from "./types/primitiveTypeSchemaCodes";
-import { StructureDefinitionSchemaR4 } from "./types/StructureDefinitions/r4";
+import { StructureDefinitionSchemaR4, ElementDefinitionSchemaR4 } from "./types/StructureDefinitions/r4";
+import { typeNameToZodSchemaName, TypeNameUrlConverter } from "./nameConverter";
 import { z } from "zod";
 
 type StructureDefinition = z.infer<typeof StructureDefinitionSchemaR4>;
-type ZodSchema = z.ZodObject<any, any>;
+type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>;
 
 // ResourceLoader interface for loading StructureDefinitions
 export interface ResourceLoader {
@@ -34,12 +35,14 @@ export const mergeDefinitions = (
 ): StructureDefinition => {
     // Create a deep copy of base
     const merged = JSON.parse(JSON.stringify(base)) as StructureDefinition;
+    let constraintDeepCopy = JSON.parse(JSON.stringify(constraint)) as StructureDefinition;
 
     // Override with constraint properties
     merged.id = constraint.id;
     merged.name = constraint.name;
     merged.url = constraint.url;
     merged.version = constraint.version;
+    merged.derivation = constraint.derivation;
 
     // Keep track of base's elements by path for faster lookups
     const baseElementsByPath = new Map<string, any>();
@@ -52,206 +55,205 @@ export const mergeDefinitions = (
     }
 
     // Apply constraints from the constraint definition
-    if (constraint.snapshot?.element && merged.snapshot?.element) {
-        for (const constraintElement of constraint.snapshot.element) {
-            if (constraintElement.path) {
-                const baseElement = baseElementsByPath.get(constraintElement.path);
-
-                if (baseElement) {
-                    // Merge the constraint element over the base element
-                    // For any property that's defined in the constraint, use that value
-                    // otherwise keep the base value
-                    Object.entries(constraintElement).forEach(([key, value]) => {
-                        if (value !== undefined) {
-                            baseElement[key] = value;
-                        }
-                    });
-                } else {
-                    // If element doesn't exist in base, add it
-                    merged.snapshot.element.push(constraintElement);
-                }
+    if (constraint.differential?.element) {
+        for (const element of constraint.differential.element) {
+            if (element.path) {
+                baseElementsByPath.set(element.path, element);
             }
         }
     }
 
-    return merged;
+    constraintDeepCopy.snapshot = merged.snapshot
+    return constraintDeepCopy;
 };
 
-// Export the typeNameToZodSchemaName function
-export const typeNameToZodSchemaName = (rawTypeName: string) => {
-    // ab-cd-ef -> AbCdEfSchema
-    // 123-abc -> OneTwoThreeAbcSchema
-    // abc -> AbcSchema
 
-    const numberWords = [
-        'Zero', 'One', 'Two', 'Three', 'Four',
-        'Five', 'Six', 'Seven', 'Eight', 'Nine'
-    ];
-
-    let result = '';
-    let capitalizeNext = true;
-
-    for (let i = 0; i < rawTypeName.length; i++) {
-        const char = rawTypeName[i];
-
-        if (char === '-') {
-            capitalizeNext = true;
-            continue;
+type Node = {
+    id: string
+    element: ElementDefinition
+    children: Node[]
+}
+export const buildNodeTree = (
+    elementDefinitions: ElementDefinition[]
+): Node => {
+    if (elementDefinitions.length === 0) {
+        throw new Error('elementDefinitions is empty');
+    }
+    const rootMutable: Node = {
+        id: elementDefinitions[0].path,
+        element: elementDefinitions[0],
+        children: []
+    }
+    const stack: Node[] = [rootMutable]
+    for (const element of elementDefinitions.slice(1)) {
+        const segments = element.path.split('.')
+        // find the parent node in the stack, discarding the branches that are not the parent.
+        while (stack.length > segments.length) { stack.pop() } // for performance
+        while (
+            stack.length &&
+            !element.path.startsWith(stack[stack.length - 1].id + '.')
+        ) {
+            stack.pop()
         }
+        const parentAsStackRef = stack[stack.length - 1]
+        const child: Node = {
+            id: element.path,
+            element,
+            children: []
+        }
+        parentAsStackRef.children.push(child) // element in stack is also updated because parentAsStackRef is a reference(pointer)
+        stack.push(child)
+    }
+    return rootMutable
+}
 
-        // Handle numeric characters
-        if (/\d/.test(char)) {
-            result += numberWords[parseInt(char)];
-            capitalizeNext = false;
+const constructZodSchemaCodeFromNodeTree = (
+    node: Node,
+    rootType: string,
+    isPrimitiveStructureDefinition: boolean,
+    primitiveTypeCodeMap: PrimitiveTypeCodeMap,
+): string => {
+    const { element, children } = node
+
+    if (element.path.endsWith('[x]')) {
+        return constructZodOnChoiceOfType(element, isPrimitiveStructureDefinition, primitiveTypeCodeMap)
+    }
+    if (children.length === 0) {
+        const elementName = element.path.split('.').pop() as string
+        if (!element.type) {
+            if (element.contentReference) {
+                const contentReferenceSegments = element.contentReference.split('.')
+                if (contentReferenceSegments[0] !== `#${rootType}`) {
+                    console.error(contentReferenceSegments)
+                    console.error(rootType)
+                    throw new Error(`path ${element.path} has contentReference ${element.contentReference} which is not intended`)
+                }
+                const rootSchemaName = isPrimitiveStructureDefinition ? primitiveTypeCodeMap.get(rootType) || typeNameToZodSchemaName(rootType) : typeNameToZodSchemaName(rootType)
+                return `${elementName}: z.lazy(() => ${rootSchemaName}.shape.${contentReferenceSegments.slice(1).map(
+                    segment => {
+                        return isPrimitiveStructureDefinition ? primitiveTypeCodeMap.get(segment) || typeNameToZodSchemaName(segment) : typeNameToZodSchemaName(segment)
+                    }
+                ).join('.shape.')})`
+            }
+            console.error(element)
+            throw new Error(`path ${element.path} has no contentReference and no type`)
+        }
+        if (element.type.length !== 1) {
+            console.error(element)
+            throw new Error(`path ${element.path} has ${element.type?.length} types: this is not intended`)
+        }
+        const elementType = parseElementTypes(element.type)[0]
+        if (!elementType) {
+            console.dir(element.type[0].extension)
+            throw new Error(`path ${element.path} has no type`)
+        }
+        const arraySuffix = element.max === "*" ? ".array()" : ""
+        const optionalSuffix = element.min === 0 ? ".optional()" : ""
+        const shouldLazy = elementType === rootType
+        if (isPrimitiveStructureDefinition) {
+            const typeName = primitiveTypeCodeMap.get(elementType) || typeNameToZodSchemaName(elementType)
+            const returnSchema = `${typeName}${arraySuffix}${optionalSuffix}`
+            return shouldLazy ? `${elementName}: z.lazy(() => ${returnSchema})` : `${elementName}: ${returnSchema}`
         } else {
-            // Handle alphabetic characters
-            result += capitalizeNext ? char.toUpperCase() : char;
-            capitalizeNext = false;
+            const returnSchema = `${typeNameToZodSchemaName(elementType)}${arraySuffix}${optionalSuffix}`
+            return shouldLazy ? `${elementName}: z.lazy(() => ${returnSchema})` : `${elementName}: ${returnSchema}`
         }
     }
+    const fields = children
+        .map(child => {
+            const childSchemaCode = constructZodSchemaCodeFromNodeTree(child, rootType, isPrimitiveStructureDefinition, primitiveTypeCodeMap)
+            const key = child.element.path.split('.').pop() as string
+            return childSchemaCode
+            //return `${key}: ${childSchemaCode}`
+        })
+        .join(",\n")
+    const schemaName = element.path === rootType ? "" : typeNameToZodSchemaName(element.path.split('.').pop() as string) + ": "
+    return `${schemaName}z.object({\n${fields}\n})`
+}
 
-    // Ensure first character is capitalized
-    if (result.length > 0) {
-        result = result.charAt(0).toUpperCase() + result.slice(1);
+const constructImportStatements = (
+    elementDefinitions: ElementDefinition[],
+    rootType: string,
+    isPrimitiveStructureDefinition: boolean,
+    primitiveTypeCodeMap: PrimitiveTypeCodeMap
+): string => {
+    const importStatements = new Set<string>()
+    for (const element of elementDefinitions) {
+        if (!element.type) continue
+        const types = parseElementTypes(element.type)
+        innerLoop: for (const type of types) {
+            if (rootType === type) {
+                continue innerLoop
+            }
+            if (isPrimitiveStructureDefinition && primitiveTypeCodeMap.has(type)) {
+                continue innerLoop
+            }
+            importStatements.add(type)
+        }
     }
+    const importStatementsArray = Array.from(importStatements)
+    return `import { z } from 'zod'\n${importStatementsArray.map(importStatement => `import { ${typeNameToZodSchemaName(importStatement)} } from './${importStatement}'`).join('\n')
+        }`
+}
 
-    return result + 'Schema';
-};
+
+
+const constructZodOnChoiceOfType = (
+    element: ElementDefinition,
+    isPrimitiveStructureDefinition: boolean,
+    primitiveTypeCodeMap: PrimitiveTypeCodeMap
+): string => {
+    const elementNameRaw = element.path.split('.').pop() as string
+    const elementName = elementNameRaw.slice(0, -3)
+    const types = parseElementTypes(element.type)
+
+    return types.map(type => {
+        const typeName = type.charAt(0).toUpperCase() + type.slice(1)
+        if (isPrimitiveStructureDefinition) {
+            return `${elementName}${typeName}: ${primitiveTypeCodeMap.get(type) || typeNameToZodSchemaName(type)}`
+        } else {
+            return `${elementName}${typeName}: ${typeNameToZodSchemaName(type)}`
+        }
+    }).join(",\n")
+}
+
+const parseElementTypes = (elementTypes: ElementDefinition['type']): string[] => {
+    const types: string[] = []
+    outerLoop: for (const type of elementTypes || []) {
+        if (type.extension) {
+            for (const extension of type.extension) {
+                if (extension.url === "http://hl7.org/fhir/StructureDefinition/structuredefinition-fhir-type") {
+                    types.push(extension.valueUrl as string)
+                    continue outerLoop
+                }
+            }
+        }
+        types.push(type.code as string)
+    }
+    return types
+}
 
 export const constructZodSchemaCode = (
     structureDefinition: StructureDefinition,
     primitiveTypeCodeMap: PrimitiveTypeCodeMap,
     resourceLoader?: ResourceLoader
 ): string => {
-    // Handle derivation=constraint if resourceLoader is provided
-    if (resourceLoader && structureDefinition.derivation === "constraint" && structureDefinition.baseDefinition) {
-        const baseDefinition = resourceLoader.loadStructureDefinition(structureDefinition.baseDefinition);
-
-        if (!baseDefinition) {
-            console.warn(
-                `Warning: Base definition ${structureDefinition.baseDefinition} not found for ${structureDefinition.id}. ` +
-                `Proceeding with partial schema generation.`
-            );
-        } else {
-            // Merge base definition with constraint
-            structureDefinition = mergeDefinitions(baseDefinition, structureDefinition);
+    const isConstraint = structureDefinition.derivation === "constraint"
+    try {
+        const nodeTree = buildNodeTree(structureDefinition.snapshot?.element || [])
+        let importStatements = constructImportStatements(structureDefinition.snapshot?.element || [], nodeTree.id, structureDefinition.kind === "primitive-type", primitiveTypeCodeMap)
+        if (isConstraint) {
+            importStatements += `\nimport { ${typeNameToZodSchemaName(nodeTree.id)} } from './${nodeTree.id}'\n`
         }
+        const schemaCode = constructZodSchemaCodeFromNodeTree(nodeTree, nodeTree.id, structureDefinition.kind === "primitive-type", primitiveTypeCodeMap)
+        const schemaName = isConstraint ? `${typeNameToZodSchemaName(nodeTree.id + "-" + structureDefinition.id)}` : typeNameToZodSchemaName(nodeTree.id)
+        return `${importStatements}\nexport const ${schemaName} = ${schemaCode}`
+    } catch (error) {
+        console.error(structureDefinition)
+        return ""
     }
-
-    let zodSchemaCodeFields = new Map<string, string>(); // key is the field name, value is the field code
-    let importStatements = ""
-    const importedTypes = new Set<string>();
-    const isPrimitiveType = structureDefinition.kind === "primitive-type";
-    const snapshot = structureDefinition.snapshot;
-    for (const element of snapshot?.element || []) {
-        if (element.path) {
-            const rawElementName = element.path.split('.').pop() as string
-            const types = element.type?.map((t: any) => {
-                if (t.extension) {
-                    for (const extension of t.extension) {
-                        if (extension.url === "http://hl7.org/fhir/StructureDefinition/structuredefinition-fhir-type") {
-                            return extension.valueUrl as string;
-                        }
-                    }
-                }
-                return t.code as string;
-            })
-            // Skip the root element which is the resource itself
-            if (element.path === structureDefinition.id) {
-                continue;
-            }
-
-            // Determine if the field is optional based on min value
-            const isOptional = element.min === 0;
-
-            // Determine if the field is an array based on max value
-            const isArray = element.max === "*";
-
-            if (rawElementName.endsWith('[x]')) {
-                const elementNameBase = rawElementName.slice(0, -3)
-                for (const type of types) {
-                    const capitalizedType = type.charAt(0).toUpperCase() + type.slice(1)
-                    const elementName = `${elementNameBase}${capitalizedType}`
-                    let elementSchema = "";
-
-                    if (isPrimitiveType) {
-                        elementSchema = primitiveTypeCodeMap.get(type) || "z.unknown()";
-                    } else {
-                        const typeSchemaName = typeNameToZodSchemaName(type);
-                        if (!importedTypes.has(type) && type !== structureDefinition.id) {
-                            importStatements += `import { ${typeSchemaName} } from "./${type}"\n`
-                            importedTypes.add(type);
-                        }
-                        elementSchema = typeSchemaName;
-                    }
-
-                    // Apply array wrapper if needed
-                    if (isArray) {
-                        elementSchema = `z.array(${elementSchema})`;
-                    }
-
-                    // Apply optional modifier if needed
-                    if (isOptional) {
-                        elementSchema = `${elementSchema}.optional()`;
-                    }
-
-                    // Self-referencing type
-                    if (type === structureDefinition.id && !isPrimitiveType) {
-                        elementSchema = `z.lazy(() => ${elementSchema})`;
-                    }
-
-                    zodSchemaCodeFields.set(elementName, elementSchema);
-                }
-            } else {
-                const elementName = rawElementName
-                const type = types?.[0]
-
-                if (!type) {
-                    // Skip elements without a type
-                    continue;
-                }
-
-                let elementSchema = "";
-
-                if (isPrimitiveType) {
-                    elementSchema = primitiveTypeCodeMap.get(type) || "z.unknown()";
-                } else {
-                    const typeSchemaName = typeNameToZodSchemaName(type);
-                    if (!importedTypes.has(type) && type !== structureDefinition.id) {
-                        importStatements += `import { ${typeSchemaName} } from "./${type}"\n`
-                        importedTypes.add(type);
-                    }
-                    elementSchema = typeSchemaName;
-                }
-
-                // Apply array wrapper if needed
-                if (isArray) {
-                    elementSchema = `z.array(${elementSchema})`;
-                }
-
-                // Apply optional modifier if needed
-                if (isOptional) {
-                    elementSchema = `${elementSchema}.optional()`;
-                }
-                // Self-referencing type
-                if (type === structureDefinition.id && !isPrimitiveType) {
-                    elementSchema = `z.lazy(() => ${elementSchema})`;
-                }
-
-                zodSchemaCodeFields.set(elementName, elementSchema);
-            }
-        }
-    }
-    let zodSchemaCode = ""
-    zodSchemaCode += `import { z } from "zod";\n`
-    zodSchemaCode += importStatements
-    zodSchemaCode += `\nexport const ${typeNameToZodSchemaName(structureDefinition.id)} = z.object({\n`
-    for (const [key, value] of zodSchemaCodeFields.entries()) {
-        zodSchemaCode += `    ${key}: ${value},\n`
-    }
-    zodSchemaCode += `});\n\n`
-    return zodSchemaCode
 }
+
 
 // Generate all Zod schemas with proper dependency resolution
 export const generateZodSchemasWithDependencies = (
@@ -259,64 +261,68 @@ export const generateZodSchemasWithDependencies = (
     primitiveTypeCodeMap: PrimitiveTypeCodeMap
 ): Map<string, string> => {
     const resourceLoader = new LocalResourceLoader(structureDefinitions);
-    const results = new Map<string, string>();
-    const processed = new Set<string>();
-    const processing = new Set<string>();
-
-    // Recursively process dependencies
-    const processDependencies = (id: string): void => {
-        // Skip if already processed
-        if (processed.has(id)) return;
-
-        // Detect circular dependencies
-        if (processing.has(id)) {
-            // Circular dependency detected, will be handled with z.lazy()
-            return;
-        }
-
-        processing.add(id);
-        const definition = resourceLoader.loadStructureDefinition(id);
-
-        if (!definition) {
-            //console.warn(`Warning: Definition for ${id} not found`);
-            processing.delete(id);
-            return;
-        }
-
-        // Process base definition dependency first
-        if (definition.derivation === "constraint" && definition.baseDefinition) {
-            // Extract the id part from the URL
-            const baseUrl = definition.baseDefinition;
-            const baseId = baseUrl.split('/').pop() || baseUrl;
-            processDependencies(baseId);
-        }
-
-        // Process type dependencies from snapshot.element
-        if (definition.snapshot?.element) {
-            for (const element of definition.snapshot.element) {
-                if (element.type) {
-                    for (const typeRef of element.type) {
-                        const typeCode = typeRef.code;
-                        if (typeCode && typeCode !== definition.id && !primitiveTypeCodeMap.has(typeCode)) {
-                            processDependencies(typeCode);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Generate schema code
-        const schemaCode = constructZodSchemaCode(definition, primitiveTypeCodeMap, resourceLoader);
-        results.set(definition.id, schemaCode);
-
-        processed.add(id);
-        processing.delete(id);
-    };
-
-    // Process all definitions
-    for (const def of structureDefinitions) {
-        processDependencies(def.id);
+    const typeNameUrlConverter = new TypeNameUrlConverter(structureDefinitions);
+    const structureDefinitionMap = new Map<string, StructureDefinition>();
+    for (const definition of structureDefinitions) {
+        structureDefinitionMap.set(definition.id, definition);
     }
 
+    // Helper function to find the entire constraint chain
+    const findConstraintChain = (definition: StructureDefinition): StructureDefinition[] => {
+        const chain: StructureDefinition[] = [definition];
+
+        let currentDef = definition;
+        while (currentDef.derivation === "constraint" && currentDef.baseDefinition) {
+            const baseUri = currentDef.baseDefinition;
+            const baseId = typeNameUrlConverter.urlToTypeName(baseUri);
+
+            if (!baseId) {
+                throw new Error(`Base definition URL ${baseUri} could not be converted to a type name for ${currentDef.id}`);
+            }
+
+            const baseDef = structureDefinitionMap.get(baseId);
+            if (!baseDef) {
+                throw new Error(`Base definition ${baseId} not found for ${currentDef.id}`);
+            }
+
+            chain.push(baseDef);
+            currentDef = baseDef;
+        }
+
+        // Reverse to get from base specification to most specific constraint
+        return chain.reverse();
+    };
+
+    // Merge an entire constraint chain into a single definition
+    const mergeConstraintChain = (chain: StructureDefinition[]): StructureDefinition => {
+        if (chain.length === 1) return chain[0];
+
+        let result = chain[0]; // Start with the base specification
+
+        for (let i = 1; i < chain.length; i++) {
+            result = mergeDefinitions(result, chain[i]);
+        }
+
+        return result;
+    };
+
+    const results = new Map<string, string>();
+    for (const definition of structureDefinitions) {
+        if (definition.derivation === "constraint") {
+            try {
+                const constraintChain = findConstraintChain(definition);
+                const fullyMergedDefinition = mergeConstraintChain(constraintChain);
+                const schemaCode = constructZodSchemaCode(fullyMergedDefinition, primitiveTypeCodeMap, resourceLoader);
+                results.set(definition.id, schemaCode);
+            } catch (error) {
+                console.error(`Error processing constraint definition ${definition.id}:`, error);
+                results.set(definition.id, `// Error processing constraint: ${(error as Error).message}`);
+            }
+            continue;
+        }
+
+        const schemaCode = constructZodSchemaCode(definition, primitiveTypeCodeMap, resourceLoader);
+        results.set(definition.id, schemaCode);
+    }
     return results;
 }
