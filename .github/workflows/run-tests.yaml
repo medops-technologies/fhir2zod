@@ -1,0 +1,26 @@
+name: Run Tests
+on: push
+
+jobs:
+  # Label of the container job
+  run-test:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        version: [18, 20, 22]
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.version }}
+
+      - name: Install dependencies
+        run: |
+          npm install
+
+      - name: Run tests
+        run: |
+          npm test
