@@ -2,78 +2,17 @@ import { initializePrimitiveTypeSchemasCodes, PrimitiveTypeCodeMap } from "./typ
 import { StructureDefinitionSchemaR4, ElementDefinitionSchemaR4 } from "./types/StructureDefinitions/r4";
 import { typeNameToZodSchemaName, TypeNameUrlConverter } from "./nameConverter";
 import { z } from "zod";
+import { resolveConstraintChain } from "./merger";
 
 type StructureDefinition = z.infer<typeof StructureDefinitionSchemaR4>;
 type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>;
-
-// ResourceLoader interface for loading StructureDefinitions
-export interface ResourceLoader {
-    loadStructureDefinition(url: string): StructureDefinition | null;
-}
-
-// Local file based resource loader implementation
-export class LocalResourceLoader implements ResourceLoader {
-    private definitionMap: Map<string, StructureDefinition> = new Map();
-
-    constructor(structureDefinitions: StructureDefinition[]) {
-        // Index by both URL and ID for faster lookups
-        for (const def of structureDefinitions) {
-            if (def.url) this.definitionMap.set(def.url, def);
-            if (def.id) this.definitionMap.set(def.id, def);
-        }
-    }
-
-    loadStructureDefinition(urlOrId: string): StructureDefinition | null {
-        return this.definitionMap.get(urlOrId) || null;
-    }
-}
-
-// Merge a base definition with a constraint definition
-export const mergeDefinitions = (
-    base: StructureDefinition,
-    constraint: StructureDefinition
-): StructureDefinition => {
-    // Create a deep copy of base
-    const merged = JSON.parse(JSON.stringify(base)) as StructureDefinition;
-    let constraintDeepCopy = JSON.parse(JSON.stringify(constraint)) as StructureDefinition;
-
-    // Override with constraint properties
-    merged.id = constraint.id;
-    merged.name = constraint.name;
-    merged.url = constraint.url;
-    merged.version = constraint.version;
-    merged.derivation = constraint.derivation;
-
-    // Keep track of base's elements by path for faster lookups
-    const baseElementsByPath = new Map<string, any>();
-    if (merged.snapshot?.element) {
-        for (const element of merged.snapshot.element) {
-            if (element.path) {
-                baseElementsByPath.set(element.path, element);
-            }
-        }
-    }
-
-    // Apply constraints from the constraint definition
-    if (constraint.differential?.element) {
-        for (const element of constraint.differential.element) {
-            if (element.path) {
-                baseElementsByPath.set(element.path, element);
-            }
-        }
-    }
-
-    constraintDeepCopy.snapshot = merged.snapshot
-    return constraintDeepCopy;
-};
-
 
 type Node = {
     id: string
     element: ElementDefinition
     children: Node[]
 }
-export const buildNodeTree = (
+const buildNodeTree = (
     elementDefinitions: ElementDefinition[]
 ): Node => {
     if (elementDefinitions.length === 0) {
@@ -196,8 +135,6 @@ const constructImportStatements = (
         }`
 }
 
-
-
 const constructZodOnChoiceOfType = (
     element: ElementDefinition,
     isPrimitiveStructureDefinition: boolean,
@@ -233,10 +170,9 @@ const parseElementTypes = (elementTypes: ElementDefinition['type']): string[] =>
     return types
 }
 
-export const constructZodSchemaCode = (
+const constructZodSchemaCode = (
     structureDefinition: StructureDefinition,
     primitiveTypeCodeMap: PrimitiveTypeCodeMap,
-    resourceLoader?: ResourceLoader
 ): string => {
     const isConstraint = structureDefinition.derivation === "constraint"
     try {
@@ -260,69 +196,36 @@ export const generateZodSchemasWithDependencies = (
     structureDefinitions: StructureDefinition[],
     primitiveTypeCodeMap: PrimitiveTypeCodeMap
 ): Map<string, string> => {
-    const resourceLoader = new LocalResourceLoader(structureDefinitions);
     const typeNameUrlConverter = new TypeNameUrlConverter(structureDefinitions);
     const structureDefinitionMap = new Map<string, StructureDefinition>();
     for (const definition of structureDefinitions) {
         structureDefinitionMap.set(definition.id, definition);
     }
 
-    // Helper function to find the entire constraint chain
-    const findConstraintChain = (definition: StructureDefinition): StructureDefinition[] => {
-        const chain: StructureDefinition[] = [definition];
-
-        let currentDef = definition;
-        while (currentDef.derivation === "constraint" && currentDef.baseDefinition) {
-            const baseUri = currentDef.baseDefinition;
-            const baseId = typeNameUrlConverter.urlToTypeName(baseUri);
-
-            if (!baseId) {
-                throw new Error(`Base definition URL ${baseUri} could not be converted to a type name for ${currentDef.id}`);
-            }
-
-            const baseDef = structureDefinitionMap.get(baseId);
-            if (!baseDef) {
-                throw new Error(`Base definition ${baseId} not found for ${currentDef.id}`);
-            }
-
-            chain.push(baseDef);
-            currentDef = baseDef;
-        }
-
-        // Reverse to get from base specification to most specific constraint
-        return chain.reverse();
-    };
-
-    // Merge an entire constraint chain into a single definition
-    const mergeConstraintChain = (chain: StructureDefinition[]): StructureDefinition => {
-        if (chain.length === 1) return chain[0];
-
-        let result = chain[0]; // Start with the base specification
-
-        for (let i = 1; i < chain.length; i++) {
-            result = mergeDefinitions(result, chain[i]);
-        }
-
-        return result;
-    };
-
     const results = new Map<string, string>();
     for (const definition of structureDefinitions) {
-        if (definition.derivation === "constraint") {
-            try {
-                const constraintChain = findConstraintChain(definition);
-                const fullyMergedDefinition = mergeConstraintChain(constraintChain);
-                const schemaCode = constructZodSchemaCode(fullyMergedDefinition, primitiveTypeCodeMap, resourceLoader);
+        try {
+            if (definition.derivation === "constraint") {
+                const resolvedDefinition = resolveConstraintChain(definition, structureDefinitionMap, typeNameUrlConverter);
+                const schemaCode = constructZodSchemaCode(resolvedDefinition, primitiveTypeCodeMap);
                 results.set(definition.id, schemaCode);
-            } catch (error) {
-                console.error(`Error processing constraint definition ${definition.id}:`, error);
-                results.set(definition.id, `// Error processing constraint: ${(error as Error).message}`);
+                continue
             }
-            continue;
+            const schemaCode = constructZodSchemaCode(definition, primitiveTypeCodeMap);
+            results.set(definition.id, schemaCode);
+        } catch (error) {
+            console.error(`Error processing constraint definition ${definition.id}:`, error);
+            results.set(definition.id, `// Error processing constraint: ${(error as Error).message}`);
         }
-
-        const schemaCode = constructZodSchemaCode(definition, primitiveTypeCodeMap, resourceLoader);
-        results.set(definition.id, schemaCode);
     }
     return results;
+}
+
+export const testModules = {
+    buildNodeTree,
+    constructZodSchemaCode,
+    constructImportStatements,
+    constructZodSchemaCodeFromNodeTree,
+    constructZodOnChoiceOfType,
+    parseElementTypes,
 }
