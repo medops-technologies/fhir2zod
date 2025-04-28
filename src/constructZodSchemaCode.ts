@@ -12,7 +12,7 @@ type Node = {
     element: ElementDefinition
     children: Node[]
 }
-export const buildNodeTree = (
+const buildNodeTree = (
     elementDefinitions: ElementDefinition[]
 ): Node => {
     if (elementDefinitions.length === 0) {
@@ -170,7 +170,7 @@ const parseElementTypes = (elementTypes: ElementDefinition['type']): string[] =>
     return types
 }
 
-export const constructZodSchemaCode = (
+const constructZodSchemaCode = (
     structureDefinition: StructureDefinition,
     primitiveTypeCodeMap: PrimitiveTypeCodeMap,
 ): string => {
@@ -219,4 +219,13 @@ export const generateZodSchemasWithDependencies = (
         }
     }
     return results;
+}
+
+export const testModules = {
+    buildNodeTree,
+    constructZodSchemaCode,
+    constructImportStatements,
+    constructZodSchemaCodeFromNodeTree,
+    constructZodOnChoiceOfType,
+    parseElementTypes,
 }
