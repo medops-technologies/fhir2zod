@@ -72,48 +72,41 @@ export const resolveConstraintChain = (
     structureDefinitionMap: Map<string, StructureDefinition>,
     typeNameUrlConverter: TypeNameUrlConverter
 ): StructureDefinition => {
-    // Helper function to find the entire constraint chain
-    const findConstraintChain = (definition: StructureDefinition): StructureDefinition[] => {
-        const chain: StructureDefinition[] = [definition];
+    let chain: StructureDefinition[] = [targetDefinition];
 
-        let currentDef = definition;
-        while (currentDef.derivation === "constraint" && currentDef.baseDefinition) {
-            const baseUri = currentDef.baseDefinition;
-            const baseId = typeNameUrlConverter.urlToTypeName(baseUri);
+    let currentDef = targetDefinition;
+    while (currentDef.derivation === "constraint" && currentDef.baseDefinition) {
+        const baseUri = currentDef.baseDefinition;
+        const baseId = typeNameUrlConverter.urlToTypeName(baseUri);
 
-            if (!baseId) {
-                throw new Error(`Base definition URL ${baseUri} could not be converted to a type name for ${currentDef.id}`);
-            }
-
-            const baseDef = structureDefinitionMap.get(baseId);
-            if (!baseDef) {
-                throw new Error(`Base definition ${baseId} not found for ${currentDef.id}`);
-            }
-
-            chain.push(baseDef);
-            currentDef = baseDef;
+        if (!baseId) {
+            throw new Error(`Base definition URL ${baseUri} could not be converted to a type name for ${currentDef.id}`);
         }
 
-        // Reverse to get from base specification to most specific constraint
-        return chain.reverse();
-    };
-
-    // Merge an entire constraint chain into a single definition
-    const mergeConstraintChain = (chain: StructureDefinition[]): StructureDefinition => {
-        if (chain.length === 1) return chain[0];
-
-        let result = chain[0]; // Start with the base specification
-
-        for (let i = 1; i < chain.length; i++) {
-            result = mergeDefinitions(result, chain[i]);
+        const baseDef = structureDefinitionMap.get(baseId);
+        if (!baseDef) {
+            throw new Error(`Base definition ${baseId} not found for ${currentDef.id}`);
         }
 
-        return result;
-    };
-    const constraintChain = findConstraintChain(targetDefinition);
-    const fullyMergedDefinition = mergeConstraintChain(constraintChain);
+        chain.push(baseDef);
+        currentDef = baseDef;
+    }
+
+    // Reverse to get from base specification to most specific constraint
+    chain = chain.reverse();
+
+    if (chain.length === 1) {
+        return chain[0];
+    }
+
+    const fullyMergedDefinition = chain.reduce((acc, curr, index) => {
+        // Skip the first element as it's the target definition
+        if (index === 0) return acc;
+        return mergeDefinitions(acc, curr);
+    }, chain[0]);
+
     return fullyMergedDefinition;
-}
+};
 
 // For testing purposes
 export const mergeDefinitionsForTest = {
