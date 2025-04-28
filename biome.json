@@ -11,7 +11,7 @@
     "formatter": {
         "enabled": true,
         "formatWithErrors": false,
-        "ignore": [],
+        "ignore": ["test/**/*"],
         "indentWidth": 4,
         "indentStyle": "space",
         "lineWidth": 80
@@ -42,7 +42,7 @@
         }
     },
     "linter": {
-        "ignore": [],
+        "ignore": ["test/**/*"],
         "rules": {
             "a11y": {
                 "noAriaUnsupportedElements": "error",
