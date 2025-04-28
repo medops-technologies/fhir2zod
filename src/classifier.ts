@@ -1,23 +1,26 @@
-import { Readable } from "node:stream";
+import { Readable } from 'node:stream'
 
 export const classifyFHIRDefinition = async (
     definition: Readable,
-    rules: Record<string, (obj: any) => boolean>
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    rules: Record<string, (obj: any) => boolean>,
 ) => {
-    const result: Record<string, any[]> = {};
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+    const result: Record<string, any[]> = {}
 
     for await (const obj of definition) {
         for (const [key, rule] of Object.entries(rules)) {
             if (rule(obj)) {
-                result[key] = result[key] || [];
-                result[key].push(obj);
-                break;
+                result[key] = result[key] || []
+                result[key].push(obj)
+                break
             }
         }
     }
-    return result;
+    return result
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 export const structureDefinitionRule = (obj: any) => {
-    return obj.resourceType === 'StructureDefinition';
+    return obj.resourceType === 'StructureDefinition'
 }
