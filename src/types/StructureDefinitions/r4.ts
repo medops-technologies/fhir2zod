@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod'
 
 // Basic FHIR utility schemas
 const CodingSchema = z.object({
@@ -7,17 +7,17 @@ const CodingSchema = z.object({
     code: z.string().optional(),
     display: z.string().optional(),
     userSelected: z.boolean().optional(),
-});
+})
 
 const CodeableConceptSchema = z.object({
     coding: z.array(CodingSchema).optional(),
     text: z.string().optional(),
-});
+})
 
 const PeriodSchema = z.object({
     start: z.string().optional(), // dateTime
-    end: z.string().optional(),   // dateTime
-});
+    end: z.string().optional(), // dateTime
+})
 
 const IdentifierSchema = z.object({
     use: z.enum(['usual', 'official', 'temp', 'secondary', 'old']).optional(),
@@ -26,39 +26,41 @@ const IdentifierSchema = z.object({
     value: z.string().optional(),
     period: PeriodSchema.optional(),
     assigner: z.object({ display: z.string().optional() }).optional(),
-});
+})
 
 const ContactPointSchema = z.object({
-    system: z.enum(['phone', 'fax', 'email', 'pager', 'url', 'sms', 'other']).optional(),
+    system: z
+        .enum(['phone', 'fax', 'email', 'pager', 'url', 'sms', 'other'])
+        .optional(),
     value: z.string().optional(),
     use: z.enum(['home', 'work', 'temp', 'old', 'mobile']).optional(),
     rank: z.number().int().optional(),
     period: PeriodSchema.optional(),
-});
+})
 
 const ContactDetailSchema = z.object({
     name: z.string().optional(),
     telecom: z.array(ContactPointSchema).optional(),
-});
+})
 
 const QuantitySchema = z.object({
     value: z.number().optional(),
     unit: z.string().optional(),
     system: z.string().url().optional(),
     code: z.string().optional(),
-});
+})
 
 const RangeSchema = z.object({
     low: QuantitySchema.optional(),
     high: QuantitySchema.optional(),
-});
+})
 
 const UsageContextSchema = z.object({
     code: CodingSchema,
     valueCodeableConcept: CodeableConceptSchema.optional(),
     valueQuantity: QuantitySchema.optional(),
     valueRange: RangeSchema.optional(),
-});
+})
 
 export const ElementDefinitionSchemaR4 = z.object({
     id: z.string().optional(),
@@ -94,7 +96,7 @@ export const ElementDefinitionSchemaR4 = z.object({
     isSummary: z.boolean().optional(),
     binding: z.any().optional(),
     mapping: z.array(z.any()).optional(),
-});
+})
 
 export const StructureDefinitionSchemaR4 = z.object({
     resourceType: z.literal('StructureDefinition'),
@@ -116,22 +118,34 @@ export const StructureDefinitionSchemaR4 = z.object({
     copyright: z.string().optional(),
     keyword: z.array(CodingSchema).optional(),
     fhirVersion: z.string(),
-    mapping: z.array(z.object({
-        identity: z.string(),
-        uri: z.string().url().optional(),
-        name: z.string().optional(),
-        comment: z.string().optional(),
-    })).optional(),
+    mapping: z
+        .array(
+            z.object({
+                identity: z.string(),
+                uri: z.string().url().optional(),
+                name: z.string().optional(),
+                comment: z.string().optional(),
+            }),
+        )
+        .optional(),
     kind: z.enum(['primitive-type', 'complex-type', 'resource', 'logical']),
     abstract: z.boolean(),
-    context: z.array(z.object({
-        type: z.enum(['fhirpath', 'element', 'extension']),
-        expression: z.string(),
-    })).optional(),
+    context: z
+        .array(
+            z.object({
+                type: z.enum(['fhirpath', 'element', 'extension']),
+                expression: z.string(),
+            }),
+        )
+        .optional(),
     contextInvariant: z.array(z.string()).optional(),
     type: z.string().url().optional(),
     baseDefinition: z.string().url().optional(),
     derivation: z.enum(['specialization', 'constraint']).optional(),
-    snapshot: z.object({ element: z.array(ElementDefinitionSchemaR4) }).optional(),
-    differential: z.object({ element: z.array(ElementDefinitionSchemaR4) }).optional(),
-});
+    snapshot: z
+        .object({ element: z.array(ElementDefinitionSchemaR4) })
+        .optional(),
+    differential: z
+        .object({ element: z.array(ElementDefinitionSchemaR4) })
+        .optional(),
+})

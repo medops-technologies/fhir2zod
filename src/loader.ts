@@ -27,7 +27,7 @@ export const loadNdjsonFile = (path: string): Readable => {
             // Parse the JSON and push it to the output stream
             const parsedJson = JSON.parse(line)
             outputStream.push(parsedJson)
-        } catch (error) {
+        } catch (_error) {
             // In case of parsing error, emit an error on the output stream
             outputStream.emit(
                 'error',

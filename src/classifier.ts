@@ -20,6 +20,7 @@ export const classifyFHIRDefinition = async (
     return result
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 export const structureDefinitionRule = (obj: any) => {
     return obj.resourceType === 'StructureDefinition'
 }
