@@ -21,6 +21,14 @@ jobs:
         run: |
           npm install
 
+      - name: Check Lint
+        run: |
+          npm run check-lint
+
+      - name: Check Format
+        run: |
+          npm run check-format
+
       - name: Run tests
         run: |
           npm test
