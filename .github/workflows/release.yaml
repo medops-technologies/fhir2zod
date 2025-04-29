@@ -1,22 +1,13 @@
 name: Release on npm
 on:
-  push:
-    branches:
-      - "main"
-      - "feature/upload-to-npm"
-    paths:
-      - package.json
   workflow_run:
     workflows: ["Run Tests"]
-    push:
-      branches: ["main", "feature/upload-to-npm"]
-      paths:
-        - package.json
-    types: 
-      - completed
+    branches: ["main", "feature/upload-to-npm"]
+    types: ["completed"]
 
 jobs:
   build_and_publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,6 +17,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Check whether package.json changed
+        run: |
+          git fetch --depth=2 origin ${{ github.event.workflow_run.head_branch }}
+          if ! git diff --name-only HEAD^ HEAD | grep -q '^package\.json$'; then
+            echo "package.json unchanged → nothing to publish"
+            exit 0
+          fi
 
       - name: Set up Node
         uses: actions/setup-node@v4
