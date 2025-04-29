@@ -110,7 +110,22 @@ const constructZodSchemaCodeFromNodeTree = (
             console.dir(element.type[0].extension)
             throw new Error(`path ${element.path} has no type`)
         }
-        const arraySuffix = element.max === '*' ? '.array()' : ''
+        if (element.min === 0 && element.max === '0') {
+            return ''
+        }
+        let arraySuffix = ''
+        if (
+            element.max === '*' ||
+            (element.max && Number.parseInt(element.max, 10) > 1)
+        ) {
+            arraySuffix = '.array()'
+            if (element.min !== 0) {
+                arraySuffix += `.min(${element.min})`
+            }
+            if (element.max && element.max !== '*') {
+                arraySuffix += `.max(${Number.parseInt(element.max, 10)})`
+            }
+        }
         const optionalSuffix = element.min === 0 ? '.optional()' : ''
         const shouldLazy = elementType === rootType
         if (isPrimitiveStructureDefinition) {

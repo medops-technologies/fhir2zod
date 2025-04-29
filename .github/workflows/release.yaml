@@ -2,7 +2,7 @@ name: Release on npm
 on:
   workflow_run:
     workflows: ["Run Tests"]
-    branches: ["main", "feature/upload-to-npm"]
+    branches: ["main"]
     types: [completed]
 
 jobs:

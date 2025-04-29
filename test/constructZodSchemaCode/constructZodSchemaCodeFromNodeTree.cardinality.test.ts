@@ -1,7 +1,7 @@
+import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
 import { testModules } from '../../src/constructZodSchemaCode';
 import { ElementDefinitionSchemaR4 } from '../../src/types/StructureDefinitions/r4';
-import { z } from 'zod';
-import { describe, expect, test } from 'vitest';
 import { PrimitiveTypeCodeMap } from '../../src/types/primitiveTypeSchemaCodes';
 
 const { constructZodSchemaCodeFromNodeTree } = testModules;
@@ -66,7 +66,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
 
         const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
 
-        expect(result).toBe('name: StringSchema.array()');
+        expect(result).toBe('name: StringSchema.array().min(1)');
     });
 
     test('should handle cardinality with primitive types', () => {
@@ -109,5 +109,65 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
         const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\nContactSchema: z.object({\nname: StringSchema,\nphone: StringSchema.optional()\n})\n})');
+    });
+
+    test('should handle array with min and max constraints', () => {
+        const element = createElement('Patient.identifier', [createType('string')], 2, "5");
+        const node = createNode('Patient.identifier', element);
+        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
+
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+
+        expect(result).toBe('identifier: StringSchema.array().min(2).max(5)');
+    });
+
+    test('should handle optional array with max constraint', () => {
+        const element = createElement('Patient.identifier', [createType('string')], 0, "5");
+        const node = createNode('Patient.identifier', element);
+        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
+
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+
+        expect(result).toBe('identifier: StringSchema.array().max(5).optional()');
+    });
+
+    test('should handle required array with min constraint', () => {
+        const element = createElement('Patient.identifier', [createType('string')], 2, "*");
+        const node = createNode('Patient.identifier', element);
+        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
+
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+
+        expect(result).toBe('identifier: StringSchema.array().min(2)');
+    });
+
+    test('should exclude element when min=0 and max=0', () => {
+        const element = createElement('Patient.deceased', [createType('boolean')], 0, "0");
+        const node = createNode('Patient.deceased', element);
+        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
+
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+
+        expect(result).toBe('');
+    });
+
+    test('should handle complex nested structure with multiple array constraints', () => {
+        const patientElement = createElement('Patient');
+        const contactElement = createElement('Patient.contact', undefined, 0, "*");
+        const nameElement = createElement('Patient.contact.name', [createType('string')], 1);
+        const phoneElement = createElement('Patient.contact.phone', [createType('string')], 0, "3");
+        const emailElement = createElement('Patient.contact.email', [createType('string')], 0, "5");
+
+        const nameNode = createNode('Patient.contact.name', nameElement);
+        const phoneNode = createNode('Patient.contact.phone', phoneElement);
+        const emailNode = createNode('Patient.contact.email', emailElement);
+        const contactNode = createNode('Patient.contact', contactElement, [nameNode, phoneNode, emailNode]);
+        const patientNode = createNode('Patient', patientElement, [contactNode]);
+
+        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
+
+        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
+
+        expect(result).toBe('z.object({\nContactSchema: z.object({\nname: StringSchema,\nphone: StringSchema.array().max(3).optional(),\nemail: StringSchema.array().max(5).optional()\n})\n})');
     });
 }); 
