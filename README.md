@@ -1,4 +1,5 @@
 # FHIR to Zod Schema Converter (fhir2zod)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/medops-technologies/fhir2zod/run-tests.yaml?label=test)
 
 A powerful utility that converts HL7 FHIR structure definitions into Zod validation schemas, enabling type-safe validation of FHIR resources in TypeScript/JavaScript applications.
 
@@ -7,7 +8,7 @@ A powerful utility that converts HL7 FHIR structure definitions into Zod validat
 - Converts FHIR StructureDefinitions to Zod schemas
 - Handles complex nested structures and references
 - Resolves circular dependencies intelligently
-- Supports FHIR R4 format
+- Currently supports FHIR R4 format
 - Provides both CLI and programmatic API
 - Generates TypeScript code with proper type annotations
 
@@ -36,15 +37,6 @@ npx fhir2zod -f path/to/fhir-definitions.ndjson -o output-directory
 fhir2zod -f file1.ndjson -f file2.ndjson -o output-directory
 ```
 
-### Programmatic Usage
-
-```typescript
-import { main } from 'fhir2zod';
-
-// Process FHIR definitions and generate Zod schemas
-await main(['path/to/fhir-definitions.ndjson'], './output');
-```
-
 ## 🛠️ Development Setup
 
 ```bash
@@ -69,7 +61,8 @@ npm test
 After generating schemas with fhir2zod:
 
 ```typescript
-import { Patient } from './output/schema/Patient';
+// import path is depends on the command you executed.
+import { PatientSchema } from './output/schema/Patient';
 
 // Example FHIR Patient resource
 const patientData = {
@@ -87,7 +80,7 @@ const patientData = {
 };
 
 // Validate the patient data
-const validationResult = Patient.safeParse(patientData);
+const validationResult = PatientSchema.safeParse(patientData);
 
 if (validationResult.success) {
   console.log("Valid patient data:", validationResult.data);
@@ -99,7 +92,7 @@ if (validationResult.success) {
 ### Example 2: Creating and Validating a FHIR Observation
 
 ```typescript
-import { Observation } from './output/schema/Observation';
+import { ObservationSchema } from './output/schema/Observation';
 
 // Create a new FHIR Observation
 const newObservation = {
@@ -127,39 +120,15 @@ const newObservation = {
 };
 
 // Validate the observation data
-const validationResult = Observation.safeParse(newObservation);
+const validationResult = ObservationSchema.safeParse(newObservation);
 
 console.log(validationResult.success 
   ? "Valid observation" 
   : `Invalid observation: ${validationResult.error}`);
 ```
 
-### Example 3: Custom Schema Enhancement
 
-You can extend the generated schemas with additional validation:
-
-```typescript
-import { z } from 'zod';
-import { Patient } from './output/schema/Patient';
-
-// Extend the generated Patient schema with custom validation
-const EnhancedPatient = Patient.extend({
-  name: z.array(z.object({
-    family: z.string().min(2).max(50),
-    given: z.array(z.string().min(1).max(50))
-  })).min(1),
-  telecom: z.array(z.object({
-    system: z.enum(["phone", "email", "fax", "pager", "sms", "other"]),
-    value: z.string().min(5)
-  })).optional(),
-  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
-});
-
-// Use the enhanced schema
-const result = EnhancedPatient.safeParse(patientData);
-```
-
-### Example 4: Working with FHIR Profile Constraint Types
+### Example 3: Working with FHIR Profile Constraint Types
 
 FHIR Profiles are constraints applied to base resources. fhir2zod generates schemas for these profiles and provides a way to look them up by URL:
 
@@ -167,6 +136,7 @@ FHIR Profiles are constraints applied to base resources. fhir2zod generates sche
 import { profileMap } from './output/profileMap';
 
 // Look up a profile schema by its canonical URL
+// Usually, the profile url is in the metadata of the Resources.
 const jpPatientProfileUrl = "http://jpfhir.jp/fhir/core/StructureDefinition/JP_Patient";
 const JPPatientProfile = profileMap.get(jpPatientProfileUrl);
 
@@ -223,76 +193,36 @@ if (JPPatientProfile) {
 }
 ```
 
-### Example 5: Accessing Multiple JP Core Profiles
+## Schema Name Convention
 
-fhir2zod generates a profileMap that allows you to access all available profiles by their canonical URLs:
+FHIR2Zod follows these naming conventions for generated Zod schemas:
 
+### Base Resource and Type Schemas
+
+For standard FHIR resources and data types:
+- PascalCase naming with `Schema` suffix
+- Example: `Patient` becomes `PatientSchema`
+- Numbers are converted to words: `123-abc` becomes `OneTwoThreeAbcSchema`
+- Hyphens trigger capitalization: `ab-cd-ef` becomes `AbCdEfSchema`
+
+### Profile Schemas (Constraint Types)
+
+For FHIR profiles (constrained resources):
+- Format: `{BaseType}{ProfileId}Schema`  
+- Example: A JP Core Patient profile with ID `jp-atient` becomes `PatientJpPatientSchema`
+- These schemas implement additional validations on top of the base resource schemas
+
+### Accessing Generated Schemas
+
+Import generated schemas from their output location:
 ```typescript
+// Base resource schemas
+import { PatientSchema } from './output/schema/Patient';
+
+// Profile/constrained schemas can be accessed directly or via the profileMap
+import { PatientJpPatientSchema } from './output/schema/JP_Patient';
 import { profileMap } from './output/profileMap';
-
-// Get JP Core profiles by their canonical URLs
-const jpPatientProfile = profileMap.get("http://jpfhir.jp/fhir/core/StructureDefinition/JP_Patient");
-const jpOrganizationProfile = profileMap.get("http://jpfhir.jp/fhir/core/StructureDefinition/JP_Organization");
-const jpEncounterProfile = profileMap.get("http://jpfhir.jp/fhir/core/StructureDefinition/JP_Encounter");
-
-// Print all available profile URLs
-console.log("Available profile URLs:");
-profileMap.forEach((_, url) => {
-  console.log(url);
-});
-
-// Find all JP Core profiles
-const jpCoreProfiles = Array.from(profileMap.entries())
-  .filter(([url, _]) => url.includes("jpfhir.jp"))
-  .map(([url, schema]) => ({ url, schema }));
-
-console.log(`Found ${jpCoreProfiles.length} JP Core profiles`);
-```
-
-### Example 6: Programmatically Validating Against JP Core Profiles
-
-You can validate resources against JP Core profiles and check for specific Japanese extensions and patterns:
-
-```typescript
-import { profileMap } from './output/profileMap';
-import { z } from 'zod';
-
-// Resource to validate
-const patientResource = {
-  resourceType: "Patient",
-  // ... patient data ...
-};
-
-// Function to validate against any JP Core profile
-function validateJpCore(resource, profileUrl) {
-  const profile = profileMap.get(profileUrl);
-  if (!profile) {
-    return { success: false, error: `Profile not found: ${profileUrl}` };
-  }
-  
-  return profile.safeParse(resource);
-}
-
-// Validate a Patient against JP_Patient profile
-const jpPatientResult = validateJpCore(
-  patientResource, 
-  "http://jpfhir.jp/fhir/core/StructureDefinition/JP_Patient"
-);
-
-// Get the fully typed data if validation succeeds
-if (jpPatientResult.success) {
-  // Type-safe access to JP_Patient fields
-  const typedPatient = jpPatientResult.data;
-  
-  // Extract JP-specific extensions
-  const nameRepresentations = typedPatient.name?.flatMap(name => 
-    name.extension?.filter(ext => 
-      ext.url === "http://hl7.org/fhir/StructureDefinition/iso21090-EN-representation"
-    ) ?? []
-  ) ?? [];
-  
-  console.log("Name representations:", nameRepresentations);
-}
+const jpPatientSchema = profileMap.get('http://jpfhir.jp/fhir/core/StructureDefinition/JP_Patient');
 ```
 
 ## 🔄 How It Works
@@ -348,86 +278,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - HL7 FHIR® standard - https://hl7.org/fhir/
 - Zod type validation library - https://github.com/colinhacks/zod
-
-## Project Structure
-
-- `src/` - Core source code
-  - `types/` - TypeScript type definitions
-  - `constructZodSchema.ts` - Creates Zod schemas from structure definitions
-  - `constructZodSchemaCode.ts` - Generates TypeScript code for Zod schemas
-  - `processStructureDefinitionsInOrder.ts` - Processes definitions in dependency order
-- `playground.ts` - Script to generate schemas from FHIR definitions
-- `output/` - Generated Zod schema files
-
-## Problem: Circular References with Primitive Types
-
-When converting FHIR StructureDefinitions to Zod schemas, we encounter circular references between types, particularly with primitive types. This project provides a solution to resolve these circular dependencies.
-
-## Solution
-
-Our solution uses a dependency-ordered approach to handle circular references:
-
-1. **Pre-define primitive types**: Create a map of all FHIR primitive types with their corresponding Zod schemas
-2. **Dependency analysis**:
-   - Build a dependency map of all FHIR structure definitions
-   - Perform a topological sort to determine the optimal processing order
-3. **Ordered schema construction**: Process structure definitions in dependency order
-
-## Usage
-
-```typescript
-import { processFHIRDefinitions, convertFHIRDefinitionsFromFiles } from './src';
-
-// Option 1: Process from array of definitions
-const structureDefinitions = [...]; // Your FHIR StructureDefinition objects
-const schemas = processFHIRDefinitions(structureDefinitions);
-
-// Option 2: Load definitions from JSON files in a directory
-const schemasFromFiles = await convertFHIRDefinitionsFromFiles('./fhir-definitions');
-
-// Use the schemas
-const patientSchema = schemas.get('Patient');
-const validationResult = patientSchema.safeParse(patientData);
-```
-
-## Key Components
-
-### 1. Primitive Type Schemas (`primitiveTypeSchemas.ts`)
-
-Pre-defines all FHIR primitive types (string, boolean, integer, etc.) as Zod schemas to prevent circular references.
-
-### 2. Dependency Analysis (`buildDependencyTree.ts`)
-
-Analyzes dependencies between FHIR structure definitions to determine the correct processing order.
-
-### 3. Schema Construction (`constructZodSchema.ts`)
-
-Builds Zod schemas from FHIR StructureDefinitions, handling both primitive and complex types.
-
-### 4. Ordered Processing (`processStructureDefinitionsInOrder.ts`)
-
-Processes structure definitions in dependency order using topological sorting to ensure dependencies are available when needed.
-
-## Testing
-
-Run tests with:
-
-```bash
-npm test
-```
-
-## Example
-```bash
-# After global installation
-cd examples/hl7.fhir.r4.core@4.0.1
-fhir2zod -f hl7.fhir.r4.core-4.0.1.ndjson -o output
-
-# Or with npx
-cd examples/hl7.fhir.r4.core@4.0.1
-npx fhir2zod -f hl7.fhir.r4.core-4.0.1.ndjson -o output
-```
-
-## Test
-Run `vitest`.
-
-## Contribution

@@ -1,10 +1,13 @@
 {
     "name": "fhir2zod",
-    "version": "0.1.0",
+    "version": "0.1.0-alpha.2",
+    "publishConfig": {
+        "access": "public"
+    },
     "description": "Convert HL7-FHIR StructureDefinition into Zod Schema.",
     "main": "dist/index.js",
     "bin": {
-        "fhir2zod": "./dist/index.js"
+        "fhir2zod": "dist/index.js"
     },
     "scripts": {
         "test": "vitest run",
@@ -26,5 +29,6 @@
         "ts-node": "^10.9.2",
         "tsx": "^4.19.3",
         "vitest": "^3.1.2"
-    }
+    },
+    "files": ["dist"]
 }
