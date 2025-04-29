@@ -8,7 +8,10 @@ on:
       - package.json
   workflow_run:
     workflows: ["Run Tests"]
-    branches: ["main", "feature/upload-to-npm"]
+    push:
+      branches: ["main", "feature/upload-to-npm"]
+      paths:
+        - package.json
     types: 
       - completed
 
