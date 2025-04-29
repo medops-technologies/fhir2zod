@@ -148,7 +148,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
 
         const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
 
-        expect(result).toBe('');
+        expect(result).toBe('// The field \'deceased\' is omitted because its cardinality is 0..0');
     });
 
     test('should handle complex nested structure with multiple array constraints', () => {
@@ -169,5 +169,45 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
         const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\nContactSchema: z.object({\nname: StringSchema,\nphone: StringSchema.array().max(3).optional(),\nemail: StringSchema.array().max(5).optional()\n})\n})');
+    });
+
+    test('should handle min=0, max=0 element in nested object', () => {
+        const extensionElement = createElement('Extension');
+        const idElement = createElement('Extension.id', [createType('string')], 0, "1");
+        const nestedElement = createElement('Extension.nested');
+        const excludedElement = createElement('Extension.nested.excluded', [createType('string')], 0, "0");
+        const valueElement = createElement('Extension.nested.value', [createType('string')], 1, "1");
+
+        const excludedNode = createNode('Extension.nested.excluded', excludedElement);
+        const valueNode = createNode('Extension.nested.value', valueElement);
+        const nestedNode = createNode('Extension.nested', nestedElement, [excludedNode, valueNode]);
+        const idNode = createNode('Extension.id', idElement);
+        const extensionNode = createNode('Extension', extensionElement, [idNode, nestedNode]);
+
+        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
+
+        const result = constructZodSchemaCodeFromNodeTree(extensionNode, 'Extension', false, primitiveTypeCodeMap);
+
+        expect(result).toBe('z.object({\nid: StringSchema.optional(),\nNestedSchema: z.object({\n// The field \'excluded\' is omitted because its cardinality is 0..0,\nvalue: StringSchema\n})\n})');
+    });
+
+    test('should handle min=0, max=0 element causing formatting issues', () => {
+        const extensionElement = createElement('Extension');
+        const idElement = createElement('Extension.id', [createType('string')], 0, "1");
+        const excludedElement = createElement('Extension.excluded', [createType('string')], 0, "0");
+        const urlElement = createElement('Extension.url', [createType('uri')], 1, "1");
+        const valueElement = createElement('Extension.value', [createType('string')], 0, "1");
+
+        const idNode = createNode('Extension.id', idElement);
+        const excludedNode = createNode('Extension.excluded', excludedElement);
+        const urlNode = createNode('Extension.url', urlElement);
+        const valueNode = createNode('Extension.value', valueElement);
+        const extensionNode = createNode('Extension', extensionElement, [idNode, excludedNode, urlNode, valueNode]);
+
+        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
+
+        const result = constructZodSchemaCodeFromNodeTree(extensionNode, 'Extension', false, primitiveTypeCodeMap);
+
+        expect(result).toBe('z.object({\nid: StringSchema.optional(),\n// The field \'excluded\' is omitted because its cardinality is 0..0,\nurl: UriSchema,\nvalue: StringSchema.optional()\n})');
     });
 }); 

@@ -111,7 +111,7 @@ const constructZodSchemaCodeFromNodeTree = (
             throw new Error(`path ${element.path} has no type`)
         }
         if (element.min === 0 && element.max === '0') {
-            return ''
+            return `// The field '${element.path.split('.').pop() as string}' is omitted because its cardinality is 0..0`
         }
         let arraySuffix = ''
         if (
@@ -262,6 +262,7 @@ const constructZodSchemaCode = (
             : typeNameToZodSchemaName(nodeTree.id)
         return `${importStatements}\nexport const ${schemaName} = ${schemaCode}`
     } catch (_error) {
+        console.error(_error)
         console.error(structureDefinition)
         return ''
     }
