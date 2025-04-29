@@ -1,6 +1,6 @@
 {
     "name": "fhir2zod",
-    "version": "0.1.0",
+    "version": "v0.1.0-alpha.1",
     "description": "Convert HL7-FHIR StructureDefinition into Zod Schema.",
     "main": "dist/index.js",
     "bin": {
