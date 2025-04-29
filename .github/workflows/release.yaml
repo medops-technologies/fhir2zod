@@ -6,6 +6,11 @@ on:
       - "feature/upload-to-npm"
     paths:
       - package.json
+  workflow_run:
+    workflows: ["Run Tests"]
+    branches: ["main", "feature/upload-to-npm"]
+    types: 
+      - completed
 
 jobs:
   build_and_publish:
