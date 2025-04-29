@@ -13,7 +13,6 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "build": "tsc",
-        "generate": "ts-node src/index.ts -f examples/hl7.fhir.r4.core@4.0.1/hl7.fhir.r4.core-4.0.1.ndjson -o output",
         "check-lint": "npx @biomejs/biome lint --error-on-warnings",
         "check-format": "npx @biomejs/biome format"
     },
