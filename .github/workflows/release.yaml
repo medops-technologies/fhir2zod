@@ -8,7 +8,7 @@ on:
 jobs:
   build_and_publish:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
       pull-requests: read
@@ -46,7 +46,7 @@ jobs:
           dry-run: false
 
       - name: Post-publish
-        if: steps.publish.outputs.type != 'none'
+        if: steps.publish.outputs.type
         run: |
           echo "Published ${{ steps.publish.outputs.type }} version: ${{ steps.publish.outputs.version }}"
 
@@ -58,7 +58,7 @@ jobs:
 
 
       - name: Configure changelog
-        if: steps.publish.outputs.type != 'none'
+        if: steps.publish.outputs.type
         run: |
           echo '{"categories": [], "template": "## Commits:\n\n${{ '${{UNCATEGORIZED}}' }}", "pr_template": ${{ '"- ${{MERGE_SHA}} ${{TITLE}}"' }} }' > changelog_config.json
           cat changelog_config.json
@@ -66,7 +66,7 @@ jobs:
           echo "curr_commit=$(git rev-parse HEAD)" >> $GITHUB_ENV
 
       - name: Generate changelog
-        if: steps.publish.outputs.type != 'none'
+        if: steps.publish.outputs.type
         id: github_release
         uses: mikepenz/release-changelog-builder-action@v2.9.0
         env:
@@ -78,7 +78,7 @@ jobs:
           configuration: changelog_config.json
 
       - name: Create release
-        if: steps.publish.outputs.type != 'none'
+        if: steps.publish.outputs.type
         id: create_release
         uses: actions/create-release@v1
         env:
