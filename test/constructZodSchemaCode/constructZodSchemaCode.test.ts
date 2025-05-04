@@ -1,7 +1,7 @@
+import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
 import { testModules } from '../../src/constructZodSchemaCode';
 import { ElementDefinitionSchemaR4, StructureDefinitionSchemaR4 } from '../../src/types/StructureDefinitions/r4';
-import { z } from 'zod';
-import { describe, expect, test } from 'vitest';
 import { PrimitiveTypeCodeMap } from '../../src/types/primitiveTypeSchemaCodes';
 
 const { constructZodSchemaCode } = testModules;
@@ -136,7 +136,7 @@ describe('constructZodSchemaCode', () => {
 
         expect(result).toContain('export const TestResourceSchema =');
         expect(result).toContain('z.object({');
-        expect(result).toContain('ContactSchema: z.object({');
+        expect(result).toContain('contact: z.object({');
         expect(result).toContain('name: StringSchema.optional()');
         expect(result).toContain('phone: StringSchema.optional()');
     });

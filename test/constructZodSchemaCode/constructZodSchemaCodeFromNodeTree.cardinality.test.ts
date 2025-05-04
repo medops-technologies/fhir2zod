@@ -108,7 +108,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
 
         const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
 
-        expect(result).toBe('z.object({\nContactSchema: z.object({\nname: StringSchema,\nphone: StringSchema.optional()\n})\n})');
+        expect(result).toBe('z.object({\ncontact: z.object({\nname: StringSchema,\nphone: StringSchema.optional()\n}).array().optional()\n})');
     });
 
     test('should handle array with min and max constraints', () => {
@@ -168,7 +168,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
 
         const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
 
-        expect(result).toBe('z.object({\nContactSchema: z.object({\nname: StringSchema,\nphone: StringSchema.array().max(3).optional(),\nemail: StringSchema.array().max(5).optional()\n})\n})');
+        expect(result).toBe('z.object({\ncontact: z.object({\nname: StringSchema,\nphone: StringSchema.array().max(3).optional(),\nemail: StringSchema.array().max(5).optional()\n}).array().optional()\n})');
     });
 
     test('should handle min=0, max=0 element in nested object', () => {
@@ -188,7 +188,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
 
         const result = constructZodSchemaCodeFromNodeTree(extensionNode, 'Extension', false, primitiveTypeCodeMap);
 
-        expect(result).toBe('z.object({\nid: StringSchema.optional(),\nNestedSchema: z.object({\n// The field \'excluded\' is omitted because its cardinality is 0..0,\nvalue: StringSchema\n})\n})');
+        expect(result).toBe('z.object({\nid: StringSchema.optional(),\nnested: z.object({\n// The field \'excluded\' is omitted because its cardinality is 0..0,\nvalue: StringSchema\n}).optional()\n})');
     });
 
     test('should handle min=0, max=0 element causing formatting issues', () => {

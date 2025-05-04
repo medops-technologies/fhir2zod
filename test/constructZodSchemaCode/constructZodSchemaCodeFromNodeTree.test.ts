@@ -1,7 +1,7 @@
+import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
 import { testModules } from '../../src/constructZodSchemaCode';
 import { ElementDefinitionSchemaR4 } from '../../src/types/StructureDefinitions/r4';
-import { z } from 'zod';
-import { describe, expect, test } from 'vitest';
 import { PrimitiveTypeCodeMap } from '../../src/types/primitiveTypeSchemaCodes';
 
 const { constructZodSchemaCodeFromNodeTree } = testModules;
@@ -92,7 +92,7 @@ describe('constructZodSchemaCodeFromNodeTree - Basic Tests', () => {
     });
 
     test('should use schema name for non-root nodes', () => {
-        const parentElement = createElement('Patient.contact');
+        const parentElement = createElement('Patient.contact', [createType('Contact')], 1, "*");
         const nameElement = createElement('Patient.contact.name', [createType('string')]);
 
         const nameNode = createNode('Patient.contact.name', nameElement);
@@ -102,12 +102,12 @@ describe('constructZodSchemaCodeFromNodeTree - Basic Tests', () => {
 
         const result = constructZodSchemaCodeFromNodeTree(parentNode, 'Patient', false, primitiveTypeCodeMap);
 
-        expect(result).toBe('ContactSchema: z.object({\nname: StringSchema.optional()\n})');
+        expect(result).toBe('contact: z.object({\nname: StringSchema.optional()\n}).array()');
     });
 
     test('should properly handle nested objects', () => {
         const patientElement = createElement('Patient');
-        const contactElement = createElement('Patient.contact');
+        const contactElement = createElement('Patient.contact', [createType('Contact')], 0, "*");
         const nameElement = createElement('Patient.contact.name', [createType('string')]);
         const phoneElement = createElement('Patient.contact.phone', [createType('string')]);
 
@@ -120,6 +120,6 @@ describe('constructZodSchemaCodeFromNodeTree - Basic Tests', () => {
 
         const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
 
-        expect(result).toBe('z.object({\nContactSchema: z.object({\nname: StringSchema.optional(),\nphone: StringSchema.optional()\n})\n})');
+        expect(result).toBe('z.object({\ncontact: z.object({\nname: StringSchema.optional(),\nphone: StringSchema.optional()\n}).array().optional()\n})');
     });
 }); 

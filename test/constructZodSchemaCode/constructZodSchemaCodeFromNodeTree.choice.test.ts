@@ -1,7 +1,7 @@
+import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
 import { testModules } from '../../src/constructZodSchemaCode';
 import { ElementDefinitionSchemaR4 } from '../../src/types/StructureDefinitions/r4';
-import { z } from 'zod';
-import { describe, expect, test } from 'vitest';
 import { PrimitiveTypeCodeMap } from '../../src/types/primitiveTypeSchemaCodes';
 
 const { constructZodSchemaCodeFromNodeTree } = testModules;
@@ -29,77 +29,96 @@ describe('constructZodSchemaCodeFromNodeTree - Choice Type Tests', () => {
         children
     });
 
-    test('should handle simple choice type field', () => {
-        const element = createElement('Patient.value[x]', [
-            createType('string'),
-            createType('boolean')
-        ]);
-        const node = createNode('Patient.value[x]', element);
-        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
-
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
-
-        expect(result).toBe('valueString: StringSchema,\nvalueBoolean: BooleanSchema');
-    });
-
-    test('should handle choice type with complex types', () => {
-        const element = createElement('Patient.value[x]', [
-            createType('Reference'),
-            createType('CodeableConcept')
-        ]);
-        const node = createNode('Patient.value[x]', element);
-        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
-
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
-
-        expect(result).toBe('valueReference: ReferenceSchema,\nvalueCodeableConcept: CodeableConceptSchema');
-    });
-
-    test('should handle choice type with primitive types using primitiveTypeCodeMap', () => {
-        const element = createElement('String.value[x]', [
-            createType('string'),
-            createType('boolean')
-        ]);
-        const node = createNode('String.value[x]', element);
-        const primitiveTypeCodeMap = new Map([
-            ['string', 'z.string()'],
-            ['boolean', 'z.boolean()']
-        ]) as PrimitiveTypeCodeMap;
-
-        const result = constructZodSchemaCodeFromNodeTree(node, 'String', true, primitiveTypeCodeMap);
-
-        expect(result).toBe('valueString: z.string(),\nvalueBoolean: z.boolean()');
-    });
-
-    test('should handle required choice type', () => {
-        const element = createElement('Patient.value[x]', [
-            createType('string'),
-            createType('boolean')
-        ], 1);
-        const node = createNode('Patient.value[x]', element);
-        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
-
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
-
-        expect(result).toBe('valueString: StringSchema,\nvalueBoolean: BooleanSchema');
-    });
-
-    test('should handle complex nested structure with choice types', () => {
+    test('should handle expanded choice type fields', () => {
         const patientElement = createElement('Patient');
-        const observationElement = createElement('Patient.observation');
-        const valueElement = createElement('Patient.observation.value[x]', [
-            createType('string'),
-            createType('Quantity')
-        ]);
+        const valueStringElement = createElement('Patient.valueString', [createType('string')], 1);
+        const valueBooleanElement = createElement('Patient.valueBoolean', [createType('boolean')], 1);
 
-        const valueNode = createNode('Patient.observation.value[x]', valueElement);
-        const observationNode = createNode('Patient.observation', observationElement, [valueNode]);
-        const patientNode = createNode('Patient', patientElement, [observationNode]);
+        const valueStringNode = createNode('Patient.valueString', valueStringElement);
+        const valueBooleanNode = createNode('Patient.valueBoolean', valueBooleanElement);
+        const patientNode = createNode('Patient', patientElement, [valueStringNode, valueBooleanNode]);
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
         const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
 
-        expect(result).toBe('z.object({\nObservationSchema: z.object({\nvalueString: StringSchema,\nvalueQuantity: QuantitySchema\n})\n})');
+        expect(result).toBe('z.object({\nvalueString: StringSchema,\nvalueBoolean: BooleanSchema\n})');
+    });
+
+    test('should handle concrete paths with custom definitions', () => {
+        const patientElement = createElement('Patient');
+        const valueStringElement = createElement('Patient.valueString', [createType('string')], 1, "1"); // Required
+        const valueBooleanElement = createElement('Patient.valueBoolean', [createType('boolean')], 0, "*"); // Optional, multiple
+
+        const valueStringNode = createNode('Patient.valueString', valueStringElement);
+        const valueBooleanNode = createNode('Patient.valueBoolean', valueBooleanElement);
+        const patientNode = createNode('Patient', patientElement, [valueStringNode, valueBooleanNode]);
+
+        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
+
+        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
+
+        expect(result).toBe('z.object({\nvalueString: StringSchema,\nvalueBoolean: BooleanSchema.array().optional()\n})');
+    });
+
+    test('should handle nested structures in concrete paths', () => {
+        const patientElement = createElement('Patient');
+        const valueCodeableConceptElement = createElement('Patient.valueCodeableConcept', [createType('CodeableConcept')]);
+        const codingElement = createElement('Patient.valueCodeableConcept.coding', [createType('Coding')]);
+
+        const codingNode = createNode('Patient.valueCodeableConcept.coding', codingElement);
+        const valueCodeableConceptNode = createNode('Patient.valueCodeableConcept', valueCodeableConceptElement, [codingNode]);
+        const patientNode = createNode('Patient', patientElement, [valueCodeableConceptNode]);
+
+        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
+
+        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
+
+        expect(result).toBe('z.object({\nvalueCodeableConcept: z.object({\ncoding: CodingSchema.optional()\n}).optional()\n})');
+    });
+
+    test('should handle multiple concrete paths with different structures', () => {
+        const patientElement = createElement('Patient');
+        const valueStringElement = createElement('Patient.valueString', [createType('string')]);
+        const valueCodeableConceptElement = createElement('Patient.valueCodeableConcept', [createType('CodeableConcept')]);
+        const codingElement = createElement('Patient.valueCodeableConcept.coding', [createType('Coding')]);
+        const valueReferenceElement = createElement('Patient.valueReference', [createType('Reference')]);
+        const referenceElement = createElement('Patient.valueReference.reference', [createType('string')]);
+
+        const codingNode = createNode('Patient.valueCodeableConcept.coding', codingElement);
+        const valueCodeableConceptNode = createNode('Patient.valueCodeableConcept', valueCodeableConceptElement, [codingNode]);
+        const referenceNode = createNode('Patient.valueReference.reference', referenceElement);
+        const valueReferenceNode = createNode('Patient.valueReference', valueReferenceElement, [referenceNode]);
+        const valueStringNode = createNode('Patient.valueString', valueStringElement);
+        const patientNode = createNode('Patient', patientElement, [
+            valueStringNode,
+            valueCodeableConceptNode,
+            valueReferenceNode
+        ]);
+
+        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
+
+        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
+
+        expect(result).toBe('z.object({\nvalueString: StringSchema.optional(),\nvalueCodeableConcept: z.object({\ncoding: CodingSchema.optional()\n}).optional(),\nvalueReference: z.object({\nreference: StringSchema.optional()\n}).optional()\n})');
+    });
+
+    test('should handle primitive types with primitiveTypeCodeMap', () => {
+        const stringElement = createElement('String');
+        const valueStringElement = createElement('String.valueString', [createType('string')], 1);
+        const valueBooleanElement = createElement('String.valueBoolean', [createType('boolean')], 1);
+
+        const valueStringNode = createNode('String.valueString', valueStringElement);
+        const valueBooleanNode = createNode('String.valueBoolean', valueBooleanElement);
+        const stringNode = createNode('String', stringElement, [valueStringNode, valueBooleanNode]);
+
+        const primitiveTypeCodeMap = new Map([
+            ['string', 'z.string()'],
+            ['boolean', 'z.boolean()']
+        ]) as PrimitiveTypeCodeMap;
+
+        const result = constructZodSchemaCodeFromNodeTree(stringNode, 'String', true, primitiveTypeCodeMap);
+
+        expect(result).toBe('z.object({\nvalueString: z.string(),\nvalueBoolean: z.boolean()\n})');
     });
 }); 
