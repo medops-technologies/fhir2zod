@@ -1,10 +1,11 @@
+import child_process from 'node:child_process'
 import { z } from 'zod'
-import { TypeNameUrlConverter } from './nameConverter'
 import {
     ElementDefinitionSchemaR4,
     StructureDefinitionSchemaR4,
 } from './types/StructureDefinitions/r4'
 import { DependencyMap } from './types/tree'
+import { TypeNameUrlConverter } from './utils'
 
 type StructureDefinition = z.infer<typeof StructureDefinitionSchemaR4>
 type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>
@@ -46,6 +47,17 @@ export const buildDependencyMap = (
             if (!dependencyMap[id].includes(baseId)) {
                 dependencyMap[id].push(baseId)
             }
+        }
+        if (
+            structureDefinition.derivation === 'constraint' &&
+            !structureDefinition.baseDefinition
+        ) {
+            console.error(
+                `StructureDefinition ${structureDefinition.id} has no baseDefinition.`,
+            )
+            throw new Error(
+                `StructureDefinition ${structureDefinition.id} has no baseDefinition.`,
+            )
         }
 
         const snapshotElements = snapshot?.element || []
