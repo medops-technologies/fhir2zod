@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { typeNameToZodSchemaName, TypeNameUrlConverter } from "../src/nameConverter";
+import { describe, expect, it } from "vitest";
+import { TypeNameUrlConverter, typeNameToZodSchemaName } from "../src/utils";
 
 describe("typeNameToZodSchemaName", () => {
     it("should convert type name to zod schema name", () => {

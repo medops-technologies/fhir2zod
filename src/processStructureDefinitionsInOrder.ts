@@ -4,10 +4,10 @@ import { Writable } from 'node:stream'
 import { z } from 'zod'
 import { buildDependencyMap } from './buildDependencyTree'
 import { generateZodSchemasWithDependencies } from './constructZodSchemaCode'
-import { TypeNameUrlConverter, typeNameToZodSchemaName } from './nameConverter'
 import { StructureDefinitionSchemaR4 } from './types/StructureDefinitions/r4'
 import { PrimitiveTypeCodeMap } from './types/primitiveTypeSchemaCodes'
 import { DependencyMap } from './types/tree'
+import { TypeNameUrlConverter, typeNameToZodSchemaName } from './utils'
 
 type StructureDefinition = z.infer<typeof StructureDefinitionSchemaR4>
 type StreamFactory = (filePath: string) => Writable

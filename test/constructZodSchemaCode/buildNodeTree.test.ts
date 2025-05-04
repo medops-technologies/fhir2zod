@@ -1,19 +1,25 @@
+import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
 import { testModules } from '../../src/constructZodSchemaCode';
 import { ElementDefinitionSchemaR4 } from '../../src/types/StructureDefinitions/r4';
-import { z } from 'zod';
-import { describe, expect, test } from 'vitest';
 
 const { buildNodeTree } = testModules;
 type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>;
 
 describe('buildNodeTree', () => {
     // Helper function to create element definitions with minimal required properties
-    const createElementDefinition = (path: string, min = 0, max = "1"): ElementDefinition => ({
+    const createElementDefinition = (path: string, type?: any[], min = 0, max = "1"): ElementDefinition => ({
         path,
         min,
         max,
-        id: path
+        id: path,
+        type
     } as ElementDefinition);
+
+    // Helper function to create type definitions
+    const createType = (code: string): ElementDefinition['type'][0] => ({
+        code
+    } as ElementDefinition['type'][0]);
 
     test('should throw an error when given an empty array', () => {
         expect(() => buildNodeTree([])).toThrow('elementDefinitions is empty');
@@ -235,6 +241,206 @@ describe('buildNodeTree', () => {
                     children: []
                 }
             ]
+        });
+    });
+
+    describe('Choice Type Tests', () => {
+        test('should expand [x] form paths into concrete paths with correct min/max values', () => {
+            const elements = [
+                createElementDefinition('Patient'),
+                createElementDefinition('Patient.value[x]', [
+                    createType('string'),
+                    createType('boolean'),
+                    createType('CodeableConcept')
+                ], 0, "1")
+            ];
+
+            const result = buildNodeTree(elements);
+
+            expect(result).toEqual({
+                id: 'Patient',
+                element: elements[0],
+                children: [
+                    {
+                        id: 'Patient.valueString',
+                        element: expect.objectContaining({
+                            path: 'Patient.valueString',
+                            type: [createType('string')],
+                            min: 0,
+                            max: "1"
+                        }),
+                        children: []
+                    },
+                    {
+                        id: 'Patient.valueBoolean',
+                        element: expect.objectContaining({
+                            path: 'Patient.valueBoolean',
+                            type: [createType('boolean')],
+                            min: 0,
+                            max: "1"
+                        }),
+                        children: []
+                    },
+                    {
+                        id: 'Patient.valueCodeableConcept',
+                        element: expect.objectContaining({
+                            path: 'Patient.valueCodeableConcept',
+                            type: [createType('CodeableConcept')],
+                            min: 0,
+                            max: "1"
+                        }),
+                        children: []
+                    }
+                ]
+            });
+        });
+
+        test('should prioritize concrete paths over [x] form paths', () => {
+            const elements = [
+                createElementDefinition('Patient'),
+                createElementDefinition('Patient.value[x]', [
+                    createType('string'),
+                    createType('boolean'),
+                    createType('CodeableConcept')
+                ], 0, "1"),
+                createElementDefinition('Patient.valueCodeableConcept', [
+                    createType('CodeableConcept')
+                ], 1, "*"),  // Required and multiple
+                createElementDefinition('Patient.valueCodeableConcept.coding', [
+                    createType('Coding')
+                ], 0, "*")
+            ];
+
+            const result = buildNodeTree(elements);
+
+            expect(result).toEqual({
+                id: 'Patient',
+                element: elements[0],
+                children: [
+                    {
+                        id: 'Patient.valueString',
+                        element: expect.objectContaining({
+                            path: 'Patient.valueString',
+                            type: [createType('string')],
+                            min: 0,
+                            max: "1"
+                        }),
+                        children: []
+                    },
+                    {
+                        id: 'Patient.valueBoolean',
+                        element: expect.objectContaining({
+                            path: 'Patient.valueBoolean',
+                            type: [createType('boolean')],
+                            min: 0,
+                            max: "1"
+                        }),
+                        children: []
+                    },
+                    {
+                        id: 'Patient.valueCodeableConcept',
+                        element: expect.objectContaining({
+                            path: 'Patient.valueCodeableConcept',
+                            type: [createType('CodeableConcept')],
+                            min: 1,
+                            max: "*"
+                        }),
+                        children: [
+                            {
+                                id: 'Patient.valueCodeableConcept.coding',
+                                element: expect.objectContaining({
+                                    path: 'Patient.valueCodeableConcept.coding',
+                                    type: [createType('Coding')],
+                                    min: 0,
+                                    max: "*"
+                                }),
+                                children: []
+                            }
+                        ]
+                    }
+                ]
+            });
+        });
+
+        test('should handle multiple [x] forms with different min/max values in concrete paths', () => {
+            const elements = [
+                createElementDefinition('Patient'),
+                createElementDefinition('Patient.value[x]', [
+                    createType('string'),
+                    createType('boolean'),
+                    createType('CodeableConcept'),
+                    createType('Reference')
+                ], 0, "1"),
+                createElementDefinition('Patient.valueCodeableConcept', [
+                    createType('CodeableConcept')
+                ], 1, "*"),  // Required and multiple
+                createElementDefinition('Patient.valueReference', [
+                    createType('Reference')
+                ], 0, "1"),  // Optional and single
+                createElementDefinition('Patient.valueReference.reference', [
+                    createType('string')
+                ], 1, "1")   // Required and single
+            ];
+
+            const result = buildNodeTree(elements);
+
+            expect(result).toEqual({
+                id: 'Patient',
+                element: elements[0],
+                children: [
+                    {
+                        id: 'Patient.valueString',
+                        element: expect.objectContaining({
+                            path: 'Patient.valueString',
+                            type: [createType('string')],
+                            min: 0,
+                            max: "1"
+                        }),
+                        children: []
+                    },
+                    {
+                        id: 'Patient.valueBoolean',
+                        element: expect.objectContaining({
+                            path: 'Patient.valueBoolean',
+                            type: [createType('boolean')],
+                            min: 0,
+                            max: "1"
+                        }),
+                        children: []
+                    },
+                    {
+                        id: 'Patient.valueCodeableConcept',
+                        element: expect.objectContaining({
+                            path: 'Patient.valueCodeableConcept',
+                            type: [createType('CodeableConcept')],
+                            min: 1,
+                            max: "*"
+                        }),
+                        children: []
+                    },
+                    {
+                        id: 'Patient.valueReference',
+                        element: expect.objectContaining({
+                            path: 'Patient.valueReference',
+                            type: [createType('Reference')],
+                            min: 0,
+                            max: "1"
+                        }),
+                        children: [
+                            {
+                                id: 'Patient.valueReference.reference',
+                                element: expect.objectContaining({
+                                    path: 'Patient.valueReference.reference',
+                                    type: [createType('string')],
+                                    min: 1,
+                                    max: "1"
+                                }),
+                                children: []
+                            }
+                        ]
+                    }
+                ]
+            });
         });
     });
 });

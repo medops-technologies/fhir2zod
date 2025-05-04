@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { resolveConstraintChain } from './merger'
-import { TypeNameUrlConverter, typeNameToZodSchemaName } from './nameConverter'
 import {
     ElementDefinitionSchemaR4,
     StructureDefinitionSchemaR4,
@@ -9,6 +8,11 @@ import {
     PrimitiveTypeCodeMap,
     initializePrimitiveTypeSchemasCodes,
 } from './types/primitiveTypeSchemaCodes'
+import {
+    TypeNameUrlConverter,
+    parseElementTypes,
+    typeNameToZodSchemaName,
+} from './utils'
 
 type StructureDefinition = z.infer<typeof StructureDefinitionSchemaR4>
 type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>
@@ -22,34 +26,104 @@ const buildNodeTree = (elementDefinitions: ElementDefinition[]): Node => {
     if (elementDefinitions.length === 0) {
         throw new Error('elementDefinitions is empty')
     }
+
+    // First, identify the root path and create root node
+    const rootPath = elementDefinitions[0].path
     const rootMutable: Node = {
-        id: elementDefinitions[0].path,
+        id: rootPath,
         element: elementDefinitions[0],
         children: [],
     }
-    const stack: Node[] = [rootMutable]
+
+    // Create a map to store all nodes for quick lookup
+    const nodeMap = new Map<string, Node>()
+    nodeMap.set(rootPath, rootMutable)
+
+    // Process remaining elements and expand [x] form paths
     for (const element of elementDefinitions.slice(1)) {
-        const segments = element.path.split('.')
-        // find the parent node in the stack, discarding the branches that are not the parent.
-        while (stack.length > segments.length) {
-            stack.pop()
-        } // for performance
-        while (
-            stack.length &&
-            !element.path.startsWith(`${stack[stack.length - 1].id}.`)
-        ) {
-            stack.pop()
+        if (element.path.endsWith('[x]') && element.type) {
+            // Expand [x] form paths into concrete paths
+            const basePath = element.path.slice(0, -3)
+            for (const type of element.type) {
+                const typeName =
+                    type.code.charAt(0).toUpperCase() + type.code.slice(1)
+                const concretePath = `${basePath}${typeName}`
+
+                // Create expanded element
+                const expandedElement: ElementDefinition = {
+                    ...element,
+                    path: concretePath,
+                    id: concretePath,
+                    type: [type],
+                }
+
+                // Add to tree
+                addNodeToTree(expandedElement, nodeMap)
+            }
+        } else {
+            // Add regular element to tree
+            addNodeToTree(element, nodeMap)
         }
-        const parentAsStackRef = stack[stack.length - 1]
-        const child: Node = {
-            id: element.path,
-            element,
+    }
+
+    return rootMutable
+}
+
+const addNodeToTree = (
+    element: ElementDefinition,
+    nodeMap: Map<string, Node>,
+) => {
+    const pathParts = element.path.split('.')
+    const parentPath = pathParts.slice(0, -1).join('.')
+
+    // Get or create parent node
+    let parentNode = nodeMap.get(parentPath)
+    if (!parentNode) {
+        // If parent node doesn't exist, create it with minimal properties
+        parentNode = {
+            id: parentPath,
+            element: {
+                path: parentPath,
+                id: parentPath,
+            } as ElementDefinition,
             children: [],
         }
-        parentAsStackRef.children.push(child) // element in stack is also updated because parentAsStackRef is a reference(pointer)
-        stack.push(child)
+        nodeMap.set(parentPath, parentNode)
+
+        // Find and link to grandparent
+        const grandparentPath = pathParts.slice(0, -2).join('.')
+        const grandparent = nodeMap.get(grandparentPath)
+        if (grandparent) {
+            grandparent.children.push(parentNode)
+        }
     }
-    return rootMutable
+
+    // Create current node
+    const currentNode: Node = {
+        id: element.path,
+        element,
+        children: [],
+    }
+
+    // Check if this is a concrete path that should override an existing node
+    const existingNodeIndex = parentNode.children.findIndex(
+        child => child.id === element.path,
+    )
+
+    if (existingNodeIndex !== -1) {
+        // If this is a concrete path, it should override the existing node
+        if (!element.path.endsWith('[x]')) {
+            // Preserve existing children when overriding
+            const existingChildren =
+                parentNode.children[existingNodeIndex].children
+            currentNode.children = existingChildren
+            parentNode.children[existingNodeIndex] = currentNode
+        }
+    } else {
+        parentNode.children.push(currentNode)
+    }
+
+    nodeMap.set(element.path, currentNode)
 }
 
 const constructZodSchemaCodeFromNodeTree = (
@@ -60,13 +134,6 @@ const constructZodSchemaCodeFromNodeTree = (
 ): string => {
     const { element, children } = node
 
-    if (element.path.endsWith('[x]')) {
-        return constructZodOnChoiceOfType(
-            element,
-            isPrimitiveStructureDefinition,
-            primitiveTypeCodeMap,
-        )
-    }
     if (children.length === 0) {
         const elementName = element.path.split('.').pop() as string
         if (!element.type) {
@@ -99,8 +166,8 @@ const constructZodSchemaCodeFromNodeTree = (
                 `path ${element.path} has no contentReference and no type`,
             )
         }
-        if (element.type.length !== 1) {
-            console.error(element)
+        // Only check for single type if it's not a choice type
+        if (!element.path.endsWith('[x]') && element.type.length !== 1) {
             throw new Error(
                 `path ${element.path} has ${element.type?.length} types: this is not intended`,
             )
@@ -111,7 +178,7 @@ const constructZodSchemaCodeFromNodeTree = (
             throw new Error(`path ${element.path} has no type`)
         }
         if (element.min === 0 && element.max === '0') {
-            return ''
+            return `// The field '${element.path.split('.').pop() as string}' is omitted because its cardinality is 0..0`
         }
         let arraySuffix = ''
         if (
@@ -142,6 +209,7 @@ const constructZodSchemaCodeFromNodeTree = (
             ? `${elementName}: z.lazy(() => ${returnSchema})`
             : `${elementName}: ${returnSchema}`
     }
+
     const fields = children
         .map(child => {
             const childSchemaCode = constructZodSchemaCodeFromNodeTree(
@@ -152,12 +220,22 @@ const constructZodSchemaCodeFromNodeTree = (
             )
             return childSchemaCode
         })
+        .filter(Boolean) // Remove empty strings and nulls
         .join(',\n')
-    const schemaName =
+
+    const elementName = element.path.split('.').pop() as string
+    const schemaName = element.path === rootType ? '' : `${elementName}: `
+    const fieldOptionalSuffix = element.min === 0 ? '.optional()' : ''
+    const fieldArraySuffix =
+        element.max === '*' ||
+        (element.max && Number.parseInt(element.max, 10) > 1)
+            ? '.array()'
+            : ''
+    const fieldSuffix =
         element.path === rootType
             ? ''
-            : `${typeNameToZodSchemaName(element.path.split('.').pop() as string)}: `
-    return `${schemaName}z.object({\n${fields}\n})`
+            : `${fieldArraySuffix}${fieldOptionalSuffix}`
+    return fields ? `${schemaName}z.object({\n${fields}\n})${fieldSuffix}` : ''
 }
 
 const constructImportStatements = (
@@ -201,7 +279,8 @@ const constructZodOnChoiceOfType = (
     const elementName = elementNameRaw.slice(0, -3)
     const types = parseElementTypes(element.type)
 
-    return types
+    // Generate schema for all types
+    const schemaForTypes = types
         .map(type => {
             const typeName = type.charAt(0).toUpperCase() + type.slice(1)
             if (isPrimitiveStructureDefinition) {
@@ -210,27 +289,8 @@ const constructZodOnChoiceOfType = (
             return `${elementName}${typeName}: ${typeNameToZodSchemaName(type)}`
         })
         .join(',\n')
-}
 
-const parseElementTypes = (
-    elementTypes: ElementDefinition['type'],
-): string[] => {
-    const types: string[] = []
-    outerLoop: for (const type of elementTypes || []) {
-        if (type.extension) {
-            for (const extension of type.extension) {
-                if (
-                    extension.url ===
-                    'http://hl7.org/fhir/StructureDefinition/structuredefinition-fhir-type'
-                ) {
-                    types.push(extension.valueUrl as string)
-                    continue outerLoop
-                }
-            }
-        }
-        types.push(type.code as string)
-    }
-    return types
+    return schemaForTypes
 }
 
 const constructZodSchemaCode = (
@@ -262,6 +322,7 @@ const constructZodSchemaCode = (
             : typeNameToZodSchemaName(nodeTree.id)
         return `${importStatements}\nexport const ${schemaName} = ${schemaCode}`
     } catch (_error) {
+        console.error(_error)
         console.error(structureDefinition)
         return ''
     }
@@ -304,10 +365,10 @@ export const generateZodSchemasWithDependencies = (
                 `Error processing constraint definition ${definition.id}:`,
                 error,
             )
-            results.set(
-                definition.id,
-                `// Error processing constraint: ${(error as Error).message}`,
-            )
+            //results.set(
+            //    definition.id,
+            //    `// Error processing constraint: ${(error as Error).message}`,
+            //)
         }
     }
     return results

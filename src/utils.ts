@@ -1,6 +1,10 @@
 import { z } from 'zod'
-import { StructureDefinitionSchemaR4 } from './types/StructureDefinitions/r4'
+import {
+    ElementDefinitionSchemaR4,
+    StructureDefinitionSchemaR4,
+} from './types/StructureDefinitions/r4'
 type StructureDefinition = z.infer<typeof StructureDefinitionSchemaR4>
+type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>
 
 type ZodSchemaName = string
 export const typeNameToZodSchemaName = (rawTypeName: string): ZodSchemaName => {
@@ -68,4 +72,25 @@ export class TypeNameUrlConverter {
     public urlToTypeName(url: string): string | undefined {
         return this.urlToTypeNameMap.get(url)
     }
+}
+
+export const parseElementTypes = (
+    elementTypes: ElementDefinition['type'],
+): string[] => {
+    const types: string[] = []
+    outerLoop: for (const type of elementTypes || []) {
+        if (type.extension) {
+            for (const extension of type.extension) {
+                if (
+                    extension.url ===
+                    'http://hl7.org/fhir/StructureDefinition/structuredefinition-fhir-type'
+                ) {
+                    types.push(extension.valueUrl as string)
+                    continue outerLoop
+                }
+            }
+        }
+        types.push(type.code as string)
+    }
+    return types
 }
