@@ -22,34 +22,103 @@ const buildNodeTree = (elementDefinitions: ElementDefinition[]): Node => {
     if (elementDefinitions.length === 0) {
         throw new Error('elementDefinitions is empty')
     }
+    // First, identify the root path and create root node
+    const rootPath = elementDefinitions[0].path
     const rootMutable: Node = {
-        id: elementDefinitions[0].path,
+        id: rootPath,
         element: elementDefinitions[0],
         children: [],
     }
-    const stack: Node[] = [rootMutable]
+
+    // Create a map to store all nodes for quick lookup
+    const nodeMap = new Map<string, Node>()
+    nodeMap.set(rootPath, rootMutable)
+
+    // Process remaining elements and expand [x] form paths
     for (const element of elementDefinitions.slice(1)) {
-        const segments = element.path.split('.')
-        // find the parent node in the stack, discarding the branches that are not the parent.
-        while (stack.length > segments.length) {
-            stack.pop()
-        } // for performance
-        while (
-            stack.length &&
-            !element.path.startsWith(`${stack[stack.length - 1].id}.`)
-        ) {
-            stack.pop()
+        if (element.path.endsWith('[x]') && element.type) {
+            // Expand [x] form paths into concrete paths
+            const basePath = element.path.slice(0, -3)
+            for (const type of element.type) {
+                const typeName =
+                    type.code.charAt(0).toUpperCase() + type.code.slice(1)
+                const concretePath = `${basePath}${typeName}`
+
+                // Create expanded element
+                const expandedElement: ElementDefinition = {
+                    ...element,
+                    path: concretePath,
+                    id: concretePath,
+                    type: [type],
+                }
+
+                // Add to tree
+                addNodeToTree(expandedElement, nodeMap)
+            }
+        } else {
+            // Add regular element to tree
+            addNodeToTree(element, nodeMap)
         }
-        const parentAsStackRef = stack[stack.length - 1]
-        const child: Node = {
-            id: element.path,
-            element,
+    }
+
+    return rootMutable
+}
+
+const addNodeToTree = (
+    element: ElementDefinition,
+    nodeMap: Map<string, Node>,
+) => {
+    const pathParts = element.path.split('.')
+    const parentPath = pathParts.slice(0, -1).join('.')
+
+    // Get or create parent node
+    let parentNode = nodeMap.get(parentPath)
+    if (!parentNode) {
+        // If parent node doesn't exist, create it with minimal properties
+        parentNode = {
+            id: parentPath,
+            element: {
+                path: parentPath,
+                id: parentPath,
+            } as ElementDefinition,
             children: [],
         }
-        parentAsStackRef.children.push(child) // element in stack is also updated because parentAsStackRef is a reference(pointer)
-        stack.push(child)
+        nodeMap.set(parentPath, parentNode)
+
+        // Find and link to grandparent
+        const grandparentPath = pathParts.slice(0, -2).join('.')
+        const grandparent = nodeMap.get(grandparentPath)
+        if (grandparent) {
+            grandparent.children.push(parentNode)
+        }
     }
-    return rootMutable
+
+    // Create current node
+    const currentNode: Node = {
+        id: element.path,
+        element,
+        children: [],
+    }
+
+    // Check if this is a concrete path that should override an existing node
+    const existingNodeIndex = parentNode.children.findIndex(
+        child => child.id === element.path,
+    )
+
+    if (existingNodeIndex !== -1) {
+        // If this is a concrete path, it should override the existing node
+        if (!element.path.endsWith('[x]')) {
+            // Preserve existing children when overriding
+            const existingChildren =
+                parentNode.children[existingNodeIndex].children
+            currentNode.children = existingChildren
+            parentNode.children[existingNodeIndex] = currentNode
+        }
+    } else {
+        parentNode.children.push(currentNode)
+    }
+
+    nodeMap.set(element.path, currentNode)
 }
 
 const constructZodSchemaCodeFromNodeTree = (
