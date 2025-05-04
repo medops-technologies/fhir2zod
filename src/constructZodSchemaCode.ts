@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { resolveConstraintChain } from './merger'
-import { TypeNameUrlConverter, typeNameToZodSchemaName } from './nameConverter'
 import {
     ElementDefinitionSchemaR4,
     StructureDefinitionSchemaR4,
@@ -9,6 +8,11 @@ import {
     PrimitiveTypeCodeMap,
     initializePrimitiveTypeSchemasCodes,
 } from './types/primitiveTypeSchemaCodes'
+import {
+    TypeNameUrlConverter,
+    parseElementTypes,
+    typeNameToZodSchemaName,
+} from './utils'
 
 type StructureDefinition = z.infer<typeof StructureDefinitionSchemaR4>
 type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>
@@ -22,6 +26,7 @@ const buildNodeTree = (elementDefinitions: ElementDefinition[]): Node => {
     if (elementDefinitions.length === 0) {
         throw new Error('elementDefinitions is empty')
     }
+
     // First, identify the root path and create root node
     const rootPath = elementDefinitions[0].path
     const rootMutable: Node = {
@@ -129,13 +134,6 @@ const constructZodSchemaCodeFromNodeTree = (
 ): string => {
     const { element, children } = node
 
-    if (element.path.endsWith('[x]')) {
-        return constructZodOnChoiceOfType(
-            element,
-            isPrimitiveStructureDefinition,
-            primitiveTypeCodeMap,
-        )
-    }
     if (children.length === 0) {
         const elementName = element.path.split('.').pop() as string
         if (!element.type) {
@@ -168,8 +166,8 @@ const constructZodSchemaCodeFromNodeTree = (
                 `path ${element.path} has no contentReference and no type`,
             )
         }
-        if (element.type.length !== 1) {
-            console.error(element)
+        // Only check for single type if it's not a choice type
+        if (!element.path.endsWith('[x]') && element.type.length !== 1) {
             throw new Error(
                 `path ${element.path} has ${element.type?.length} types: this is not intended`,
             )
@@ -211,6 +209,7 @@ const constructZodSchemaCodeFromNodeTree = (
             ? `${elementName}: z.lazy(() => ${returnSchema})`
             : `${elementName}: ${returnSchema}`
     }
+
     const fields = children
         .map(child => {
             const childSchemaCode = constructZodSchemaCodeFromNodeTree(
@@ -221,12 +220,22 @@ const constructZodSchemaCodeFromNodeTree = (
             )
             return childSchemaCode
         })
+        .filter(Boolean) // Remove empty strings and nulls
         .join(',\n')
-    const schemaName =
+
+    const elementName = element.path.split('.').pop() as string
+    const schemaName = element.path === rootType ? '' : `${elementName}: `
+    const fieldOptionalSuffix = element.min === 0 ? '.optional()' : ''
+    const fieldArraySuffix =
+        element.max === '*' ||
+        (element.max && Number.parseInt(element.max, 10) > 1)
+            ? '.array()'
+            : ''
+    const fieldSuffix =
         element.path === rootType
             ? ''
-            : `${typeNameToZodSchemaName(element.path.split('.').pop() as string)}: `
-    return `${schemaName}z.object({\n${fields}\n})`
+            : `${fieldArraySuffix}${fieldOptionalSuffix}`
+    return fields ? `${schemaName}z.object({\n${fields}\n})${fieldSuffix}` : ''
 }
 
 const constructImportStatements = (
@@ -270,7 +279,8 @@ const constructZodOnChoiceOfType = (
     const elementName = elementNameRaw.slice(0, -3)
     const types = parseElementTypes(element.type)
 
-    return types
+    // Generate schema for all types
+    const schemaForTypes = types
         .map(type => {
             const typeName = type.charAt(0).toUpperCase() + type.slice(1)
             if (isPrimitiveStructureDefinition) {
@@ -279,27 +289,8 @@ const constructZodOnChoiceOfType = (
             return `${elementName}${typeName}: ${typeNameToZodSchemaName(type)}`
         })
         .join(',\n')
-}
 
-const parseElementTypes = (
-    elementTypes: ElementDefinition['type'],
-): string[] => {
-    const types: string[] = []
-    outerLoop: for (const type of elementTypes || []) {
-        if (type.extension) {
-            for (const extension of type.extension) {
-                if (
-                    extension.url ===
-                    'http://hl7.org/fhir/StructureDefinition/structuredefinition-fhir-type'
-                ) {
-                    types.push(extension.valueUrl as string)
-                    continue outerLoop
-                }
-            }
-        }
-        types.push(type.code as string)
-    }
-    return types
+    return schemaForTypes
 }
 
 const constructZodSchemaCode = (
@@ -374,10 +365,10 @@ export const generateZodSchemasWithDependencies = (
                 `Error processing constraint definition ${definition.id}:`,
                 error,
             )
-            results.set(
-                definition.id,
-                `// Error processing constraint: ${(error as Error).message}`,
-            )
+            //results.set(
+            //    definition.id,
+            //    `// Error processing constraint: ${(error as Error).message}`,
+            //)
         }
     }
     return results
