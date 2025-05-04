@@ -97,13 +97,6 @@ const replaceNodeByPath = (
     return null
 }
 
-interface PathSegment {
-    raw: string // the as-is path segment
-    base: string // the base path segment, e.g. value[x] -> value
-    choiceOfType?: string // the choice-of-type path segment, e.g. value[x] -> value[x]
-    sliceName?: string // the slice name, e.g. coding:lonic -> lonic
-}
-
 class HasChildren {
     private ElementPathHasChildren: Map<ElementPath, ElementPath[]>
 
@@ -236,8 +229,6 @@ const expandTree = (
                     if (currentElementChildrenDiffPathsFiltered.length > 0) {
                         // This is a choice type that has been constrained in the differential
                         // Find the constrained type from the differential path
-                        const constrainedPath =
-                            currentElementChildrenDiffPathsFiltered[0]
                         const constrainedType =
                             currentNode.element.type?.[0]?.code
                         if (!constrainedType) {
