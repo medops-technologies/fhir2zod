@@ -196,13 +196,18 @@ const constructZodSchemaCodeFromNodeTree = (
         const optionalSuffix = element.min === 0 ? '.optional()' : ''
         const shouldLazy = elementType === rootType
         if (isPrimitiveStructureDefinition) {
-            const typeName =
-                primitiveTypeCodeMap.get(elementType) ||
-                typeNameToZodSchemaName(elementType)
-            const returnSchema = `${typeName}${arraySuffix}${optionalSuffix}`
+            const primitiveTypeSchema = primitiveTypeCodeMap.get(elementType)
+            if (primitiveTypeSchema) {
+                return `${elementName}: ${primitiveTypeSchema}${arraySuffix}${optionalSuffix}`
+            }
+            const returnSchema = `${typeNameToZodSchemaName(elementType)}${arraySuffix}${optionalSuffix}`
             return shouldLazy
                 ? `${elementName}: z.lazy(() => ${returnSchema})`
                 : `${elementName}: ${returnSchema}`
+        }
+        const primitiveTypeSchema = primitiveTypeCodeMap.get(elementType)
+        if (primitiveTypeSchema) {
+            return `${elementName}: ${primitiveTypeSchema}${arraySuffix}${optionalSuffix},\n_${elementName}: ${typeNameToZodSchemaName(elementType)}${arraySuffix}.optional()`
         }
         const returnSchema = `${typeNameToZodSchemaName(elementType)}${arraySuffix}${optionalSuffix}`
         return shouldLazy
