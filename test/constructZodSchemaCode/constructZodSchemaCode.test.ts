@@ -88,8 +88,8 @@ describe('constructZodSchemaCode', () => {
         expect(result).toContain('import { z } from \'zod\'');
         expect(result).toContain('export const StringSchema =');
         expect(result).toContain('z.object({');
-        expect(result).toContain('id: z.lazy(() => z.string().optional())');
-        expect(result).toContain('value: z.lazy(() => z.string().optional())');
+        expect(result).toContain('id: z.string().optional()');
+        expect(result).toContain('value: z.string().optional()');
     });
 
     test('should generate code for a constraint structure definition', () => {
