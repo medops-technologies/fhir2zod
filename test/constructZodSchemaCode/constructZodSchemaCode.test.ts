@@ -56,7 +56,7 @@ describe('constructZodSchemaCode', () => {
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCode(structureDefinition, primitiveTypeCodeMap);
+        const result = constructZodSchemaCode(structureDefinition, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toContain('import { z } from \'zod\'');
         expect(result).toContain('export const TestResourceSchema =');
@@ -83,7 +83,7 @@ describe('constructZodSchemaCode', () => {
             ['string', 'z.string()']
         ]) as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCode(structureDefinition, primitiveTypeCodeMap);
+        const result = constructZodSchemaCode(structureDefinition, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toContain('import { z } from \'zod\'');
         expect(result).toContain('export const StringSchema =');
@@ -108,7 +108,7 @@ describe('constructZodSchemaCode', () => {
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCode(structureDefinition, primitiveTypeCodeMap);
+        const result = constructZodSchemaCode(structureDefinition, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toContain('import { z } from \'zod\'');
         expect(result).toContain('import { PatientSchema } from \'./Patient\'');
@@ -132,7 +132,7 @@ describe('constructZodSchemaCode', () => {
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCode(structureDefinition, primitiveTypeCodeMap);
+        const result = constructZodSchemaCode(structureDefinition, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toContain('export const TestResourceSchema =');
         expect(result).toContain('z.object({');
@@ -149,8 +149,29 @@ describe('constructZodSchemaCode', () => {
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCode(structureDefinition, primitiveTypeCodeMap);
+        const result = constructZodSchemaCode(structureDefinition, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toBe('');
+    });
+
+    test('should generate code with .js extension when importExtension is true', () => {
+        const elements = [
+            createElement('TestResource'),
+            createElement('TestResource.reference', { type: [createType('Reference')] }),
+            createElement('TestResource.patient', { type: [createType('Patient')] })
+        ];
+
+        const structureDefinition = createStructureDefinition({
+            snapshot: { element: elements }
+        });
+
+        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
+
+        const result = constructZodSchemaCode(structureDefinition, primitiveTypeCodeMap, { importExtension: true });
+
+        expect(result).toContain('import { z } from \'zod\'');
+        expect(result).toContain('import { ReferenceSchema } from \'./Reference.js\'');
+        expect(result).toContain('import { PatientSchema } from \'./Patient.js\'');
+        expect(result).toContain('export const TestResourceSchema =');
     });
 }); 

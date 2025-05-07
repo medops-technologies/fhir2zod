@@ -35,6 +35,9 @@ npx fhir2zod -f path/to/fhir-definitions.ndjson -o output-directory
 
 # Process multiple files
 fhir2zod -f file1.ndjson -f file2.ndjson -o output-directory
+
+# Add .js extension on import statements
+fhir2zod -f file1.ndjson -f file2.ndjson -o output-directory -E
 ```
 
 ## 🛠️ Development Setup

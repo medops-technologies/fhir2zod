@@ -4,6 +4,7 @@ import {
     ElementDefinitionSchemaR4,
     StructureDefinitionSchemaR4,
 } from './types/StructureDefinitions/r4'
+import { Options } from './types/options'
 import {
     PrimitiveTypeCodeMap,
     initializePrimitiveTypeSchemasCodes,
@@ -248,6 +249,7 @@ const constructImportStatements = (
     rootType: string,
     isPrimitiveStructureDefinition: boolean,
     primitiveTypeCodeMap: PrimitiveTypeCodeMap,
+    options: Options,
 ): string => {
     const importStatements = new Set<string>()
     for (const element of elementDefinitions) {
@@ -267,10 +269,11 @@ const constructImportStatements = (
         }
     }
     const importStatementsArray = Array.from(importStatements)
+    const importExtension = options.importExtension ? '.js' : ''
     return `import { z } from 'zod'\n${importStatementsArray
         .map(
             importStatement =>
-                `import { ${typeNameToZodSchemaName(importStatement)} } from './${importStatement}'`,
+                `import { ${typeNameToZodSchemaName(importStatement)} } from './${importStatement}${importExtension}'`,
         )
         .join('\n')}`
 }
@@ -301,6 +304,7 @@ const constructZodOnChoiceOfType = (
 const constructZodSchemaCode = (
     structureDefinition: StructureDefinition,
     primitiveTypeCodeMap: PrimitiveTypeCodeMap,
+    options: Options,
 ): string => {
     const isConstraint = structureDefinition.derivation === 'constraint'
     try {
@@ -312,9 +316,11 @@ const constructZodSchemaCode = (
             nodeTree.id,
             structureDefinition.kind === 'primitive-type',
             primitiveTypeCodeMap,
+            options,
         )
+        const importExtension = options.importExtension ? '.js' : ''
         if (isConstraint) {
-            importStatements += `\nimport { ${typeNameToZodSchemaName(nodeTree.id)} } from './${nodeTree.id}'\n`
+            importStatements += `\nimport { ${typeNameToZodSchemaName(nodeTree.id)} } from './${nodeTree.id}${importExtension}'\n`
         }
         const schemaCode = constructZodSchemaCodeFromNodeTree(
             nodeTree,
@@ -337,6 +343,7 @@ const constructZodSchemaCode = (
 export const generateZodSchemasWithDependencies = (
     structureDefinitions: StructureDefinition[],
     primitiveTypeCodeMap: PrimitiveTypeCodeMap,
+    options: Options,
 ): Map<string, string> => {
     const typeNameUrlConverter = new TypeNameUrlConverter(structureDefinitions)
     const structureDefinitionMap = new Map<string, StructureDefinition>()
@@ -356,6 +363,7 @@ export const generateZodSchemasWithDependencies = (
                 const schemaCode = constructZodSchemaCode(
                     resolvedDefinition,
                     primitiveTypeCodeMap,
+                    options,
                 )
                 results.set(definition.id, schemaCode)
                 continue
@@ -363,6 +371,7 @@ export const generateZodSchemasWithDependencies = (
             const schemaCode = constructZodSchemaCode(
                 definition,
                 primitiveTypeCodeMap,
+                options,
             )
             results.set(definition.id, schemaCode)
         } catch (error) {
