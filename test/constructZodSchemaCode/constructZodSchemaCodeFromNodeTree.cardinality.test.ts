@@ -34,7 +34,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
         const node = createNode('Patient.name', element);
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('name: StringSchema.optional()');
     });
@@ -44,7 +44,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
         const node = createNode('Patient.name', element);
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('name: StringSchema');
     });
@@ -54,7 +54,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
         const node = createNode('Patient.name', element);
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('name: StringSchema.array().optional()');
     });
@@ -64,7 +64,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
         const node = createNode('Patient.name', element);
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'primitive-type', primitiveTypeCodeMap);
 
         expect(result).toBe('name: StringSchema.array().min(1)');
     });
@@ -76,7 +76,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
             ['boolean', 'z.boolean()']
         ]) as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', true, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'primitive-type', primitiveTypeCodeMap);
 
         expect(result).toBe('active: z.boolean().optional()');
     });
@@ -88,7 +88,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
             ['boolean', 'z.boolean()']
         ]) as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', true, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'primitive-type', primitiveTypeCodeMap);
 
         expect(result).toBe('active: z.boolean()');
     });
@@ -106,7 +106,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\ncontact: z.object({\nname: StringSchema,\nphone: StringSchema.optional()\n}).array().optional()\n})');
     });
@@ -116,7 +116,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
         const node = createNode('Patient.identifier', element);
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('identifier: StringSchema.array().min(2).max(5)');
     });
@@ -126,7 +126,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
         const node = createNode('Patient.identifier', element);
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('identifier: StringSchema.array().max(5).optional()');
     });
@@ -136,7 +136,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
         const node = createNode('Patient.identifier', element);
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('identifier: StringSchema.array().min(2)');
     });
@@ -146,7 +146,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
         const node = createNode('Patient.deceased', element);
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('// The field \'deceased\' is omitted because its cardinality is 0..0');
     });
@@ -166,7 +166,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\ncontact: z.object({\nname: StringSchema,\nphone: StringSchema.array().max(3).optional(),\nemail: StringSchema.array().max(5).optional()\n}).array().optional()\n})');
     });
@@ -186,7 +186,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(extensionNode, 'Extension', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(extensionNode, 'Extension', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\nid: StringSchema.optional(),\nnested: z.object({\n// The field \'excluded\' is omitted because its cardinality is 0..0,\nvalue: StringSchema\n}).optional()\n})');
     });
@@ -206,7 +206,7 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(extensionNode, 'Extension', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(extensionNode, 'Extension', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\nid: StringSchema.optional(),\n// The field \'excluded\' is omitted because its cardinality is 0..0,\nurl: UriSchema,\nvalue: StringSchema.optional()\n})');
     });
