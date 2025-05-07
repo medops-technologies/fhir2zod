@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { buildDependencyMap } from './buildDependencyTree'
 import { generateZodSchemasWithDependencies } from './constructZodSchemaCode'
 import { StructureDefinitionSchemaR4 } from './types/StructureDefinitions/r4'
+import { Options } from './types/options'
 import { PrimitiveTypeCodeMap } from './types/primitiveTypeSchemaCodes'
 import { DependencyMap } from './types/tree'
 import { TypeNameUrlConverter, typeNameToZodSchemaName } from './utils'
@@ -20,6 +21,7 @@ export const generateZodSchemaCodeFiles = (
     structureDefinitions: StructureDefinition[],
     outputDir: string,
     primitiveTypeCodeMap: PrimitiveTypeCodeMap,
+    options: Options,
     streamFactory?: StreamFactory,
 ): void => {
     // Use file system streamFactory if none provided
@@ -31,6 +33,7 @@ export const generateZodSchemaCodeFiles = (
         outputDir,
         primitiveTypeCodeMap,
         getWriteStream,
+        options,
     )
 }
 
@@ -42,6 +45,7 @@ export const processStructureDefinitions = (
     outputDir: string,
     primitiveTypeCodeMap: PrimitiveTypeCodeMap,
     streamFactory: StreamFactory,
+    options: Options,
 ): void => {
     // Ensure output directory exists
     if (!fs.existsSync(outputDir)) {
@@ -76,6 +80,7 @@ export const processStructureDefinitions = (
     const schemaResults = generateZodSchemasWithDependencies(
         sortedStructureDefinitions,
         primitiveTypeCodeMap,
+        options,
     )
 
     // For the profileMap - store constraint profiles mapping
@@ -84,7 +89,7 @@ export const processStructureDefinitions = (
     // Write each schema file
     for (const [id, schemaCode] of schemaResults.entries()) {
         try {
-            const filePath = path.join(schemaDir, `${id}.ts`)
+            const filePath = path.join(schemaDir, `${id}.js`)
             const writeStream = streamFactory(filePath)
             writeStream.write(schemaCode)
             writeStream.end()
@@ -114,10 +119,11 @@ export const processStructureDefinitions = (
     }
 
     // Generate an index file that exports all schemas
-    const indexFilePath = path.join(outputDir, 'index.ts')
+    const indexFilePath = path.join(outputDir, 'index.js')
     let indexFileContent = '// Generated index file for FHIR Zod schemas\n\n'
 
     // Use the topological sort ordering for the index file
+    const importExtension = options.importExtension ? '.js' : ''
     for (const id of processingOrder) {
         if (schemaResults.has(id)) {
             const structureDefinition = structureDefinitionMap.get(id)
@@ -143,7 +149,7 @@ export const processStructureDefinitions = (
             } else {
                 schemaName = typeNameToZodSchemaName(id)
             }
-            indexFileContent += `export { ${schemaName} } from './schema/${id}';\n`
+            indexFileContent += `export { ${schemaName} } from './schema/${id}${importExtension}';\n`
         }
     }
 
@@ -166,7 +172,7 @@ export const processStructureDefinitions = (
         if (!id) {
             throw new Error(`ID not found for ${url}`)
         }
-        profileMapContent += `import { ${schemaName} } from './schema/${id}';\n`
+        profileMapContent += `import { ${schemaName} } from './schema/${id}${importExtension}';\n`
     }
 
     profileMapContent += '\n// Map of profile URLs to their schemas\n'

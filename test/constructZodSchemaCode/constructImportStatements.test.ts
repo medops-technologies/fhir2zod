@@ -1,7 +1,7 @@
+import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
 import { testModules } from '../../src/constructZodSchemaCode';
 import { ElementDefinitionSchemaR4 } from '../../src/types/StructureDefinitions/r4';
-import { z } from 'zod';
-import { describe, expect, test } from 'vitest';
 import { PrimitiveTypeCodeMap } from '../../src/types/primitiveTypeSchemaCodes';
 
 const { constructImportStatements } = testModules;
@@ -33,7 +33,7 @@ describe('constructImportStatements', () => {
         ];
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap);
+        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toContain('import { z } from \'zod\'');
         expect(result).toContain('import { ReferenceSchema } from \'./Reference\'');
@@ -44,7 +44,7 @@ describe('constructImportStatements', () => {
         const elementDefinitions: ElementDefinition[] = [];
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap);
+        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toEqual('import { z } from \'zod\'\n');
     });
@@ -56,7 +56,7 @@ describe('constructImportStatements', () => {
         ];
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap);
+        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toEqual('import { z } from \'zod\'\n');
     });
@@ -69,7 +69,7 @@ describe('constructImportStatements', () => {
         ];
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructImportStatements(elementDefinitions, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructImportStatements(elementDefinitions, 'Patient', false, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toContain('import { ReferenceSchema } from \'./Reference\'');
         expect(result).not.toContain('./Patient\'');
@@ -86,7 +86,7 @@ describe('constructImportStatements', () => {
             ['code', 'z.string()']
         ]) as PrimitiveTypeCodeMap;
 
-        const result = constructImportStatements(elementDefinitions, 'Root', true, primitiveTypeCodeMap);
+        const result = constructImportStatements(elementDefinitions, 'Root', true, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toContain('import { ReferenceSchema } from \'./Reference\'');
         expect(result).not.toContain('import { StringSchema } from \'./string\'');
@@ -102,7 +102,7 @@ describe('constructImportStatements', () => {
         ];
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap);
+        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap, { importExtension: false });
 
         const importLines = result.split('\n');
         const referenceImportLines = importLines.filter(line => line.includes('./Reference\''));
@@ -118,7 +118,7 @@ describe('constructImportStatements', () => {
         ];
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap);
+        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toContain('import { PatientSchema } from \'./Patient\'');
         expect(result).toContain('import { ObservationSchema } from \'./Observation\'');
@@ -133,7 +133,7 @@ describe('constructImportStatements', () => {
         ];
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap);
+        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toContain('import { PatientDataSchema } from \'./patient-data\'');
         expect(result).toContain('import { ComplexTypeSchema } from \'./complexType\'');
@@ -148,10 +148,25 @@ describe('constructImportStatements', () => {
         ];
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap);
+        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap, { importExtension: false });
 
         expect(result).toContain('import { DomainResourceSchema } from \'./DomainResource\'');
         expect(result).toContain('import { ReferenceSchema } from \'./Reference\'');
         expect(result).not.toContain('import { ResourceSchema } from \'./Resource\'');
+    });
+
+    test('should include Extension schema when importExtension is true', () => {
+        const elementDefinitions = [
+            createElementDefinition('Root', [createType('Patient')]),
+            createElementDefinition('Root.extension', [createType('Extension')]),
+            createElementDefinition('Root.modifierExtension', [createType('Extension')])
+        ];
+        const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
+
+        const result = constructImportStatements(elementDefinitions, 'Root', false, primitiveTypeCodeMap, { importExtension: true });
+
+        expect(result).toContain('import { z } from \'zod\'');
+        expect(result).toContain('import { PatientSchema } from \'./Patient.js\'');
+        expect(result).toContain('import { ExtensionSchema } from \'./Extension.js\'');
     });
 });
