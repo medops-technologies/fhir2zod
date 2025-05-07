@@ -39,7 +39,7 @@ describe('constructZodSchemaCodeFromNodeTree - Basic Tests', () => {
         const element = createElement('Patient.name', [createType('string')]);
         const node = createNode('Patient.name', element);
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('name: z.string().optional(),\n_name: StringSchema.optional()');
     });
@@ -48,7 +48,7 @@ describe('constructZodSchemaCodeFromNodeTree - Basic Tests', () => {
         const element = createElement('String.value', [createType('string')]);
         const node = createNode('String.value', element);
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'String', true, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'String', 'primitive-type', primitiveTypeCodeMap);
 
         expect(result).toBe('value: z.string().optional()');
     });
@@ -57,7 +57,7 @@ describe('constructZodSchemaCodeFromNodeTree - Basic Tests', () => {
         const element = createElement('Patient.name', [createType('string')], 1);
         const node = createNode('Patient.name', element);
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('name: z.string(),\n_name: StringSchema.optional()');
     });
@@ -69,7 +69,7 @@ describe('constructZodSchemaCodeFromNodeTree - Basic Tests', () => {
         const childNode = createNode('Patient.name', childElement);
         const parentNode = createNode('Patient', parentElement, [childNode]);
 
-        const result = constructZodSchemaCodeFromNodeTree(parentNode, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(parentNode, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\nname: z.string().optional(),\n_name: StringSchema.optional()\n})');
     });
@@ -78,7 +78,7 @@ describe('constructZodSchemaCodeFromNodeTree - Basic Tests', () => {
         const element = createElement('Patient.active', [createType('boolean')], 1);
         const node = createNode('Patient.active', element);
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('active: z.boolean(),\n_active: BooleanSchema.optional()');
     });
@@ -92,7 +92,7 @@ describe('constructZodSchemaCodeFromNodeTree - Basic Tests', () => {
         const activeNode = createNode('Patient.active', activeElement);
         const parentNode = createNode('Patient', parentElement, [nameNode, activeNode]);
 
-        const result = constructZodSchemaCodeFromNodeTree(parentNode, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(parentNode, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\nname: z.string(),\n_name: StringSchema.optional(),\nactive: z.boolean().optional(),\n_active: BooleanSchema.optional()\n})');
     });
@@ -104,7 +104,7 @@ describe('constructZodSchemaCodeFromNodeTree - Basic Tests', () => {
         const nameNode = createNode('Patient.contact.name', nameElement);
         const parentNode = createNode('Patient.contact', parentElement, [nameNode]);
 
-        const result = constructZodSchemaCodeFromNodeTree(parentNode, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(parentNode, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('contact: z.object({\nname: z.string().optional(),\n_name: StringSchema.optional()\n}).array()');
     });
@@ -120,7 +120,7 @@ describe('constructZodSchemaCodeFromNodeTree - Basic Tests', () => {
         const contactNode = createNode('Patient.contact', contactElement, [nameNode, phoneNode]);
         const patientNode = createNode('Patient', patientElement, [contactNode]);
 
-        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\ncontact: z.object({\nname: z.string().optional(),\n_name: StringSchema.optional(),\nphone: z.string().optional(),\n_phone: StringSchema.optional()\n}).array().optional()\n})');
     });

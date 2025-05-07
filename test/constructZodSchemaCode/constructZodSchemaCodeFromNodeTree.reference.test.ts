@@ -1,7 +1,7 @@
+import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
 import { testModules } from '../../src/constructZodSchemaCode';
 import { ElementDefinitionSchemaR4 } from '../../src/types/StructureDefinitions/r4';
-import { z } from 'zod';
-import { describe, expect, test } from 'vitest';
 import { PrimitiveTypeCodeMap } from '../../src/types/primitiveTypeSchemaCodes';
 
 const { constructZodSchemaCodeFromNodeTree } = testModules;
@@ -37,7 +37,7 @@ describe('constructZodSchemaCodeFromNodeTree - Reference Tests', () => {
         const node = createNode('Patient.address', element);
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('address: z.lazy(() => PatientSchema.shape.ContactSchema)');
     });
@@ -50,7 +50,7 @@ describe('constructZodSchemaCodeFromNodeTree - Reference Tests', () => {
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
         expect(() => {
-            constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+            constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
         }).toThrow(/contentReference.*not intended/);
     });
 
@@ -61,7 +61,7 @@ describe('constructZodSchemaCodeFromNodeTree - Reference Tests', () => {
         const node = createNode('Patient.link', element);
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('link: z.lazy(() => PatientSchema.optional())');
     });
@@ -76,7 +76,7 @@ describe('constructZodSchemaCodeFromNodeTree - Reference Tests', () => {
             ['value', 'z.string().nullable()']
         ]) as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'String', true, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'String', 'primitive-type', primitiveTypeCodeMap);
 
         expect(result).toBe('extension: z.lazy(() => StringSchema.shape.z.string().nullable())');
     });
@@ -88,7 +88,7 @@ describe('constructZodSchemaCodeFromNodeTree - Reference Tests', () => {
         const node = createNode('Patient.address', element);
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('address: z.lazy(() => PatientSchema.shape.ContactSchema.shape.TelecomSchema)');
     });
@@ -101,7 +101,7 @@ describe('constructZodSchemaCodeFromNodeTree - Reference Tests', () => {
         const node = createNode('Patient.address', element);
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(node, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('address: z.lazy(() => PatientSchema.shape.ContactSchema)');
     });

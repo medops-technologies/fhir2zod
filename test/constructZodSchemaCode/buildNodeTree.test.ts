@@ -22,29 +22,48 @@ describe('buildNodeTree', () => {
     } as ElementDefinition['type'][0]);
 
     test('should throw an error when given an empty array', () => {
-        expect(() => buildNodeTree([])).toThrow('elementDefinitions is empty');
+        expect(() => buildNodeTree([], 'resource')).toThrow('elementDefinitions is empty');
     });
 
     test('should create a single node with no children for a single element', () => {
         const element = createElementDefinition('Root');
-        const result = buildNodeTree([element]);
+        const result = buildNodeTree([element], 'resource');
 
         expect(result).toEqual({
             id: 'Root',
             element,
-            children: []
+            children: [{
+                id: 'Root.resourceType',
+                element: {
+                    path: 'Root.resourceType',
+                    id: 'Root.resourceType',
+                    type: [{ code: 'string' }],
+                    min: 0,
+                },
+                children: []
+            }]
         });
     });
 
     test('should correctly build a simple parent-child relationship', () => {
         const root = createElementDefinition('Root');
         const child = createElementDefinition('Root.child');
-        const result = buildNodeTree([root, child]);
+        const result = buildNodeTree([root, child], 'resource');
 
         expect(result).toEqual({
             id: 'Root',
             element: root,
             children: [
+                {
+                    id: 'Root.resourceType',
+                    element: {
+                        path: 'Root.resourceType',
+                        id: 'Root.resourceType',
+                        type: [{ code: 'string' }],
+                        min: 0,
+                    },
+                    children: []
+                },
                 {
                     id: 'Root.child',
                     element: child,
@@ -58,12 +77,22 @@ describe('buildNodeTree', () => {
         const root = createElementDefinition('Root');
         const child = createElementDefinition('Root.child');
         const grandchild = createElementDefinition('Root.child.grandchild');
-        const result = buildNodeTree([root, child, grandchild]);
+        const result = buildNodeTree([root, child, grandchild], 'resource');
 
         expect(result).toEqual({
             id: 'Root',
             element: root,
             children: [
+                {
+                    id: 'Root.resourceType',
+                    element: {
+                        path: 'Root.resourceType',
+                        id: 'Root.resourceType',
+                        type: [{ code: 'string' }],
+                        min: 0,
+                    },
+                    children: []
+                },
                 {
                     id: 'Root.child',
                     element: child,
@@ -83,12 +112,22 @@ describe('buildNodeTree', () => {
         const root = createElementDefinition('Root');
         const child1 = createElementDefinition('Root.child1');
         const child2 = createElementDefinition('Root.child2');
-        const result = buildNodeTree([root, child1, child2]);
+        const result = buildNodeTree([root, child1, child2], 'resource');
 
         expect(result).toEqual({
             id: 'Root',
             element: root,
             children: [
+                {
+                    id: 'Root.resourceType',
+                    element: {
+                        path: 'Root.resourceType',
+                        id: 'Root.resourceType',
+                        type: [{ code: 'string' }],
+                        min: 0,
+                    },
+                    children: []
+                },
                 {
                     id: 'Root.child1',
                     element: child1,
@@ -110,12 +149,22 @@ describe('buildNodeTree', () => {
         const childB = createElementDefinition('Root.B');
         const childB1 = createElementDefinition('Root.B.B1');
 
-        const result = buildNodeTree([root, childA, childAA1, childB, childB1]);
+        const result = buildNodeTree([root, childA, childAA1, childB, childB1], 'resource');
 
         expect(result).toEqual({
             id: 'Root',
             element: root,
             children: [
+                {
+                    id: 'Root.resourceType',
+                    element: {
+                        path: 'Root.resourceType',
+                        id: 'Root.resourceType',
+                        type: [{ code: 'string' }],
+                        min: 0,
+                    },
+                    children: []
+                },
                 {
                     id: 'Root.A',
                     element: childA,
@@ -150,12 +199,22 @@ describe('buildNodeTree', () => {
         const childAA1 = createElementDefinition('Root.A.A1');
         const childB = createElementDefinition('Root.B');
 
-        const result = buildNodeTree([root, childA, childAA1, childB]);
+        const result = buildNodeTree([root, childA, childAA1, childB], 'resource');
 
         expect(result).toEqual({
             id: 'Root',
             element: root,
             children: [
+                {
+                    id: 'Root.resourceType',
+                    element: {
+                        path: 'Root.resourceType',
+                        id: 'Root.resourceType',
+                        type: [{ code: 'string' }],
+                        min: 0,
+                    },
+                    children: []
+                },
                 {
                     id: 'Root.A',
                     element: childA,
@@ -190,13 +249,23 @@ describe('buildNodeTree', () => {
             createElementDefinition('Root.C')
         ];
 
-        const result = buildNodeTree(elements);
+        const result = buildNodeTree(elements, 'resource');
 
         // Verify the complete structure
         expect(result).toEqual({
             id: 'Root',
             element: elements[0],
             children: [
+                {
+                    id: 'Root.resourceType',
+                    element: {
+                        path: 'Root.resourceType',
+                        id: 'Root.resourceType',
+                        type: [{ code: 'string' }],
+                        min: 0,
+                    },
+                    children: []
+                },
                 {
                     id: 'Root.A',
                     element: elements[1],
@@ -255,12 +324,22 @@ describe('buildNodeTree', () => {
                 ], 0, "1")
             ];
 
-            const result = buildNodeTree(elements);
+            const result = buildNodeTree(elements, 'resource');
 
             expect(result).toEqual({
                 id: 'Patient',
                 element: elements[0],
                 children: [
+                    {
+                        id: 'Patient.resourceType',
+                        element: {
+                            path: 'Patient.resourceType',
+                            id: 'Patient.resourceType',
+                            type: [{ code: 'string' }],
+                            min: 0,
+                        },
+                        children: []
+                    },
                     {
                         id: 'Patient.valueString',
                         element: expect.objectContaining({
@@ -311,12 +390,22 @@ describe('buildNodeTree', () => {
                 ], 0, "*")
             ];
 
-            const result = buildNodeTree(elements);
+            const result = buildNodeTree(elements, 'resource');
 
             expect(result).toEqual({
                 id: 'Patient',
                 element: elements[0],
                 children: [
+                    {
+                        id: 'Patient.resourceType',
+                        element: {
+                            path: 'Patient.resourceType',
+                            id: 'Patient.resourceType',
+                            type: [{ code: 'string' }],
+                            min: 0,
+                        },
+                        children: []
+                    },
                     {
                         id: 'Patient.valueString',
                         element: expect.objectContaining({
@@ -382,12 +471,22 @@ describe('buildNodeTree', () => {
                 ], 1, "1")   // Required and single
             ];
 
-            const result = buildNodeTree(elements);
+            const result = buildNodeTree(elements, 'resource');
 
             expect(result).toEqual({
                 id: 'Patient',
                 element: elements[0],
                 children: [
+                    {
+                        id: 'Patient.resourceType',
+                        element: {
+                            path: 'Patient.resourceType',
+                            id: 'Patient.resourceType',
+                            type: [{ code: 'string' }],
+                            min: 0,
+                        },
+                        children: []
+                    },
                     {
                         id: 'Patient.valueString',
                         element: expect.objectContaining({
