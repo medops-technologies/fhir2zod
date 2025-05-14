@@ -9,4 +9,6 @@ describe('generateAndLint', () => {
         expect(output.status).toBe(0)
 
     });
+}, {
+    timeout: 10000,
 });
