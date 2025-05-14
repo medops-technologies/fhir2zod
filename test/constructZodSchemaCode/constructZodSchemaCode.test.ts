@@ -19,7 +19,7 @@ describe('constructZodSchemaCode', () => {
         name: options.name || 'TestResource',
         status: options.status || 'active',
         kind: options.kind || 'resource',
-        abstract: options.abstract || false,
+        abstract: options.abstract,
         type: options.type || 'TestResource',
         baseDefinition: options.baseDefinition || 'http://hl7.org/fhir/StructureDefinition/DomainResource',
         derivation: options.derivation || 'specialization',
