@@ -40,7 +40,7 @@ describe('constructZodSchemaCodeFromNodeTree - Choice Type Tests', () => {
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\nvalueString: StringSchema,\nvalueBoolean: BooleanSchema\n})');
     });
@@ -56,7 +56,7 @@ describe('constructZodSchemaCodeFromNodeTree - Choice Type Tests', () => {
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\nvalueString: StringSchema,\nvalueBoolean: BooleanSchema.array().optional()\n})');
     });
@@ -72,7 +72,7 @@ describe('constructZodSchemaCodeFromNodeTree - Choice Type Tests', () => {
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\nvalueCodeableConcept: z.object({\ncoding: CodingSchema.optional()\n}).optional()\n})');
     });
@@ -98,7 +98,7 @@ describe('constructZodSchemaCodeFromNodeTree - Choice Type Tests', () => {
 
         const primitiveTypeCodeMap = new Map() as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', false, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(patientNode, 'Patient', 'resource', primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\nvalueString: StringSchema.optional(),\nvalueCodeableConcept: z.object({\ncoding: CodingSchema.optional()\n}).optional(),\nvalueReference: z.object({\nreference: StringSchema.optional()\n}).optional()\n})');
     });
@@ -117,7 +117,7 @@ describe('constructZodSchemaCodeFromNodeTree - Choice Type Tests', () => {
             ['boolean', 'z.boolean()']
         ]) as PrimitiveTypeCodeMap;
 
-        const result = constructZodSchemaCodeFromNodeTree(stringNode, 'String', true, primitiveTypeCodeMap);
+        const result = constructZodSchemaCodeFromNodeTree(stringNode, 'String', 'primitive-type', primitiveTypeCodeMap);
 
         expect(result).toBe('z.object({\nvalueString: z.string(),\nvalueBoolean: z.boolean()\n})');
     });

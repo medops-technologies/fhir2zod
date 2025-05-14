@@ -23,7 +23,10 @@ type Node = {
     element: ElementDefinition
     children: Node[]
 }
-const buildNodeTree = (elementDefinitions: ElementDefinition[]): Node => {
+const buildNodeTree = (
+    elementDefinitions: ElementDefinition[],
+    kind: string,
+): Node => {
     if (elementDefinitions.length === 0) {
         throw new Error('elementDefinitions is empty')
     }
@@ -39,6 +42,15 @@ const buildNodeTree = (elementDefinitions: ElementDefinition[]): Node => {
     // Create a map to store all nodes for quick lookup
     const nodeMap = new Map<string, Node>()
     nodeMap.set(rootPath, rootMutable)
+    if (kind === 'resource') {
+        const resourceTypeElement: ElementDefinition = {
+            path: `${rootPath}.resourceType`,
+            id: `${rootPath}.resourceType`,
+            type: [{ code: 'string' }],
+            min: 0,
+        }
+        addNodeToTree(resourceTypeElement, nodeMap)
+    }
 
     // Process remaining elements and expand [x] form paths
     for (const element of elementDefinitions.slice(1)) {
@@ -130,10 +142,11 @@ const addNodeToTree = (
 const constructZodSchemaCodeFromNodeTree = (
     node: Node,
     rootType: string,
-    isPrimitiveStructureDefinition: boolean,
+    kind: string,
     primitiveTypeCodeMap: PrimitiveTypeCodeMap,
 ): string => {
     const { element, children } = node
+    const isPrimitiveType = kind === 'primitive-type'
 
     if (children.length === 0) {
         const elementName = element.path.split('.').pop() as string
@@ -148,14 +161,14 @@ const constructZodSchemaCodeFromNodeTree = (
                         `path ${element.path} has contentReference ${element.contentReference} which is not intended`,
                     )
                 }
-                const rootSchemaName = isPrimitiveStructureDefinition
+                const rootSchemaName = isPrimitiveType
                     ? primitiveTypeCodeMap.get(rootType) ||
                       typeNameToZodSchemaName(rootType)
                     : typeNameToZodSchemaName(rootType)
                 return `${elementName}: z.lazy(() => ${rootSchemaName}.shape.${contentReferenceSegments
                     .slice(1)
                     .map(segment => {
-                        return isPrimitiveStructureDefinition
+                        return isPrimitiveType
                             ? primitiveTypeCodeMap.get(segment) ||
                                   typeNameToZodSchemaName(segment)
                             : typeNameToZodSchemaName(segment)
@@ -196,7 +209,7 @@ const constructZodSchemaCodeFromNodeTree = (
         }
         const optionalSuffix = element.min === 0 ? '.optional()' : ''
         const shouldLazy = elementType === rootType
-        if (isPrimitiveStructureDefinition) {
+        if (isPrimitiveType) {
             const primitiveTypeSchema = primitiveTypeCodeMap.get(elementType)
             if (primitiveTypeSchema) {
                 return `${elementName}: ${primitiveTypeSchema}${arraySuffix}${optionalSuffix}`
@@ -221,7 +234,7 @@ const constructZodSchemaCodeFromNodeTree = (
             const childSchemaCode = constructZodSchemaCodeFromNodeTree(
                 child,
                 rootType,
-                isPrimitiveStructureDefinition,
+                kind,
                 primitiveTypeCodeMap,
             )
             return childSchemaCode
@@ -310,6 +323,7 @@ const constructZodSchemaCode = (
     try {
         const nodeTree = buildNodeTree(
             structureDefinition.snapshot?.element || [],
+            structureDefinition.kind,
         )
         let importStatements = constructImportStatements(
             structureDefinition.snapshot?.element || [],
@@ -325,7 +339,7 @@ const constructZodSchemaCode = (
         const schemaCode = constructZodSchemaCodeFromNodeTree(
             nodeTree,
             nodeTree.id,
-            structureDefinition.kind === 'primitive-type',
+            structureDefinition.kind,
             primitiveTypeCodeMap,
         )
         const schemaName = isConstraint
