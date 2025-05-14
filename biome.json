@@ -42,7 +42,6 @@
         }
     },
     "linter": {
-        "ignore": ["test/**/*"],
         "rules": {
             "a11y": {
                 "noAriaUnsupportedElements": "error",

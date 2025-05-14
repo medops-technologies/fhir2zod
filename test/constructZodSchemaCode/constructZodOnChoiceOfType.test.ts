@@ -1,7 +1,7 @@
+import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
 import { testModules } from '../../src/constructZodSchemaCode';
 import { ElementDefinitionSchemaR4 } from '../../src/types/StructureDefinitions/r4';
-import { z } from 'zod';
-import { describe, expect, test } from 'vitest';
 import { PrimitiveTypeCodeMap } from '../../src/types/primitiveTypeSchemaCodes';
 
 const { constructZodOnChoiceOfType } = testModules;
@@ -15,7 +15,8 @@ describe('constructZodOnChoiceOfType', () => {
     } as ElementDefinition);
 
     // Helper function to create a type object
-    const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
         code,
         extension
     } as ElementDefinition['type'][0]);

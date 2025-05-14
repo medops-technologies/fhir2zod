@@ -1,14 +1,15 @@
+import { describe, expect, test } from 'vitest';
+import { z } from 'zod';
 import { testModules } from '../../src/constructZodSchemaCode';
 import { ElementDefinitionSchemaR4 } from '../../src/types/StructureDefinitions/r4';
-import { z } from 'zod';
-import { describe, expect, test } from 'vitest';
 
 const { parseElementTypes } = testModules;
 type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>;
 
 describe('parseElementTypes', () => {
     // Helper function to create a type object
-    const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
         code,
         extension
     } as ElementDefinition['type'][0]);
@@ -105,5 +106,14 @@ describe('parseElementTypes', () => {
         const result = parseElementTypes(types);
 
         expect(result).toEqual(['Resource', 'string']);
+    });
+    test('should handle primitive types that do not include a FHIR type extension', () => {
+        const types = [
+            createType('http://hl7.org/fhirpath/System.String')
+        ];
+
+        const result = parseElementTypes(types);
+
+        expect(result).toEqual(['string']);
     });
 });

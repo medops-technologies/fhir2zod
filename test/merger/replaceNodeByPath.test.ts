@@ -84,7 +84,6 @@ describe('replaceNodeByPath', () => {
         }
         const result = replaceNodeByPath(mockNode, 'root.child1', newNode)
         expect(result).not.toBeNull()
-        const child1 = result?.children.get('root.child1')
     })
 
     it('should return a deep copy of the tree', () => {

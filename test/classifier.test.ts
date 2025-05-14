@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { loadNdjsonFile } from '../src/loader';
-import { writeFileSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
+import { unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { classifyFHIRDefinition, structureDefinitionRule } from '../src/classifier';
+import { join } from 'node:path';
 import { Readable } from 'node:stream';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { classifyFHIRDefinition, structureDefinitionRule } from '../src/classifier';
+import { loadNdjsonFile } from '../src/loader';
 
 describe('classifyFHIRDefinition', () => {
     it('should classify FHIR definitions based on rules', async () => {
@@ -22,7 +22,9 @@ describe('classifyFHIRDefinition', () => {
         // Define rules for classification
         const rules = {
             structureDefinitions: structureDefinitionRule,
+            // biome-ignore lint/suspicious/noExplicitAny: <explanation>
             valueSets: (obj: any) => obj.resourceType === 'ValueSet',
+            // biome-ignore lint/suspicious/noExplicitAny: <explanation>
             codeSystems: (obj: any) => obj.resourceType === 'CodeSystem'
         };
 

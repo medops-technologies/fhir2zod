@@ -18,13 +18,15 @@ describe('constructZodSchemaCodeFromNodeTree - Reference Tests', () => {
     } as ElementDefinition);
 
     // Helper to create a type
-    const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
         code,
         extension
     } as ElementDefinition['type'][0]);
 
     // Helper to create a node
-    const createNode = (id: string, element: ElementDefinition, children: any[] = []): any => ({
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        const createNode = (id: string, element: ElementDefinition, children: any[] = []): any => ({
         id,
         element,
         children

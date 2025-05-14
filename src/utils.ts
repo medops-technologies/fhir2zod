@@ -3,6 +3,7 @@ import {
     ElementDefinitionSchemaR4,
     StructureDefinitionSchemaR4,
 } from './types/StructureDefinitions/r4'
+import { getPrimitiveTypeFromUri } from './types/primitiveTypeSchemaCodes'
 type StructureDefinition = z.infer<typeof StructureDefinitionSchemaR4>
 type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>
 
@@ -90,7 +91,11 @@ export const parseElementTypes = (
                 }
             }
         }
-        types.push(type.code as string)
+        if (type.code.startsWith('http://hl7.org')) {
+            types.push(getPrimitiveTypeFromUri(type.code))
+        } else {
+            types.push(type.code as string)
+        }
     }
     return types
 }

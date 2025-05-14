@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { loadNdjsonFile } from '../src/loader';
-import { writeFileSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
+import { unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { classifyFHIRDefinition, structureDefinitionRule } from '../src/classifier';
+import { join } from 'node:path';
 import { Readable } from 'node:stream';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildDependencyMap } from '../src/buildDependencyTree';
+import { classifyFHIRDefinition, structureDefinitionRule } from '../src/classifier';
+import { loadNdjsonFile } from '../src/loader';
 
 describe('buildDependencyMap', () => {
     it('should build dependency map', async () => {
@@ -23,7 +23,9 @@ describe('buildDependencyMap', () => {
         // Define rules for classification
         const rules = {
             structureDefinitions: structureDefinitionRule,
+            // biome-ignore lint/suspicious/noExplicitAny: <explanation>
             valueSets: (obj: any) => obj.resourceType === 'ValueSet',
+            // biome-ignore lint/suspicious/noExplicitAny: <explanation>
             codeSystems: (obj: any) => obj.resourceType === 'CodeSystem'
         };
 
@@ -135,8 +137,8 @@ describe('buildDependencyMap', () => {
         ];
 
         // 配列初期化を確認
-        const dependencyMap = {};
-        dependencyMap['Patient'] = [];
+        const dependencyMap: Record<string, string[]> = {};
+        dependencyMap.Patient = [];
 
         const result = buildDependencyMap(mockStructureDefinitions);
 
@@ -185,8 +187,8 @@ describe('buildDependencyMap', () => {
         ];
 
         // dependencyMapは初期化されたオブジェクト
-        const dependencyMap = {};
-        dependencyMap['Extension'] = 'CodeableConcept';
+        const dependencyMap: Record<string, string[]> = {};
+        dependencyMap.Extension = ['CodeableConcept'];
 
         const result = buildDependencyMap(mockStructureDefinitions);
 

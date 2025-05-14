@@ -30,6 +30,7 @@ const buildNodeTree = (
     if (elementDefinitions.length === 0) {
         throw new Error('elementDefinitions is empty')
     }
+    const choiceOfTypeRecord: Record<string, string[]> = {}
 
     // First, identify the root path and create root node
     const rootPath = elementDefinitions[0].path
@@ -72,10 +73,39 @@ const buildNodeTree = (
 
                 // Add to tree
                 addNodeToTree(expandedElement, nodeMap)
+
+                if (!choiceOfTypeRecord[basePath]) {
+                    choiceOfTypeRecord[basePath] = []
+                }
+                choiceOfTypeRecord[basePath].push(type.code)
             }
         } else {
-            // Add regular element to tree
-            addNodeToTree(element, nodeMap)
+            if (element.path.includes('[x]')) {
+                const basePath = element.path.split('[x]')[0]
+                if (!choiceOfTypeRecord[basePath]) {
+                    throw new Error(
+                        `path ${element.path} has no type definitions of basePath: ${basePath}`,
+                    )
+                }
+                if (choiceOfTypeRecord[basePath].length > 1) {
+                    throw new Error(
+                        `path ${element.path} has multiple type definitions of basePath: ${basePath}`,
+                    )
+                }
+                const typeNameRaw = choiceOfTypeRecord[basePath][0]
+                const typeName =
+                    typeNameRaw.charAt(0).toUpperCase() + typeNameRaw.slice(1)
+                const concretePath = element.path.replace('[x]', typeName)
+                const expandedElement: ElementDefinition = {
+                    ...element,
+                    path: concretePath,
+                    id: concretePath,
+                }
+                addNodeToTree(expandedElement, nodeMap)
+            } else {
+                // Add regular element to tree
+                addNodeToTree(element, nodeMap)
+            }
         }
     }
 

@@ -19,7 +19,7 @@ describe('constructZodSchemaCode', () => {
         name: options.name || 'TestResource',
         status: options.status || 'active',
         kind: options.kind || 'resource',
-        abstract: options.abstract || false,
+        abstract: options.abstract,
         type: options.type || 'TestResource',
         baseDefinition: options.baseDefinition || 'http://hl7.org/fhir/StructureDefinition/DomainResource',
         derivation: options.derivation || 'specialization',
@@ -38,7 +38,8 @@ describe('constructZodSchemaCode', () => {
     } as ElementDefinition);
 
     // Helper to create a type
-    const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
         code,
         extension
     } as ElementDefinition['type'][0]);

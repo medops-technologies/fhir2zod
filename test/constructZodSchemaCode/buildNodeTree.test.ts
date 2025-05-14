@@ -8,7 +8,8 @@ type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>;
 
 describe('buildNodeTree', () => {
     // Helper function to create element definitions with minimal required properties
-    const createElementDefinition = (path: string, type?: any[], min = 0, max = "1"): ElementDefinition => ({
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        const createElementDefinition = (path: string, type?: any[], min = 0, max = "1"): ElementDefinition => ({
         path,
         min,
         max,
@@ -540,6 +541,164 @@ describe('buildNodeTree', () => {
                     }
                 ]
             });
+        });
+        test('nested [x]', () => {
+            const elements = [
+                createElementDefinition('Patient'),
+                createElementDefinition('Patient.value[x]', [
+                    createType('CodeableConcept')
+                ], 0, "1"),
+                createElementDefinition('Patient.value[x].coding', [
+                    createType('Coding')
+                ], 0, "*")
+            ];
+
+            const result = buildNodeTree(elements, 'resource');
+
+            expect(result).toEqual({
+                id: 'Patient',
+                element: elements[0],
+                children: [
+                    {
+                        id: 'Patient.resourceType',
+                        element: {
+                            path: 'Patient.resourceType',
+                            id: 'Patient.resourceType',
+                            type: [{ code: 'string' }],
+                            min: 0,
+                        },
+                        children: []
+                    },
+                    {
+                        id: 'Patient.valueCodeableConcept',
+                        element: expect.objectContaining({
+                            path: 'Patient.valueCodeableConcept',
+                            type: [createType('CodeableConcept')],
+                            min: 0,
+                            max: "1"
+                        }),
+                        children: [
+                            {
+                                id: 'Patient.valueCodeableConcept.coding',
+                                element: expect.objectContaining({
+                                    path: 'Patient.valueCodeableConcept.coding',
+                                    type: [createType('Coding')],
+                                    min: 0,
+                                    max: "*"
+                                }),
+                                children: []
+                            }
+                        ]
+                    }
+                ]
+            });
+        });
+        test('nested [x] with other choice of types elements', () => {
+            const elements = [
+                createElementDefinition('Patient'),
+                createElementDefinition('Patient.value[x]', [
+                    createType('CodeableConcept')
+                ], 0, "1"),
+                createElementDefinition('Patient.value[x].coding', [
+                    createType('Coding')
+                ], 0, "*"),
+                createElementDefinition('Patient.abc', [
+                    createType('CodeableConcept')
+                ], 0, "1"),
+                createElementDefinition('Patient.abc.value[x]', [
+                    createType('CodeableConcept')
+                ], 0, "1"),
+                createElementDefinition('Patient.abc.value[x].coding', [
+                    createType('Coding')
+                ], 0, "*")
+            ];
+
+            const result = buildNodeTree(elements, 'resource');
+
+            expect(result).toEqual({
+                id: 'Patient',
+                element: elements[0],
+                children: [
+                    {
+                        id: 'Patient.resourceType',
+                        element: {
+                            path: 'Patient.resourceType',
+                            id: 'Patient.resourceType',
+                            type: [{ code: 'string' }],
+                            min: 0,
+                        },
+                        children: []
+                    },
+                    {
+                        id: 'Patient.valueCodeableConcept',
+                        element: expect.objectContaining({
+                            path: 'Patient.valueCodeableConcept',
+                            type: [createType('CodeableConcept')],
+                            min: 0,
+                            max: "1"
+                        }),
+                        children: [
+                            {
+                                id: 'Patient.valueCodeableConcept.coding',
+                                element: expect.objectContaining({
+                                    path: 'Patient.valueCodeableConcept.coding',
+                                    type: [createType('Coding')],
+                                    min: 0,
+                                    max: "*"
+                                }),
+                                children: []
+                            }
+                        ]
+                    },
+                    {
+                        id: 'Patient.abc',
+                        element: expect.objectContaining({
+                            id: 'Patient.abc',
+                            path: 'Patient.abc',
+                            type: [createType('CodeableConcept')],
+                            max: "1",
+                            min: 0,
+                        }),
+                        children: [
+                            {
+                                id: 'Patient.abc.valueCodeableConcept',
+                                element: expect.objectContaining({
+                                    path: 'Patient.abc.valueCodeableConcept',
+                                    type: [createType('CodeableConcept')],
+                                    min: 0,
+                                    max: "1"
+                                }),
+                                children: [
+                                    {
+                                        id: 'Patient.abc.valueCodeableConcept.coding',
+                                        element: expect.objectContaining({
+                                            path: 'Patient.abc.valueCodeableConcept.coding',
+                                            type: [createType('Coding')],
+                                            min: 0,
+                                            max: "*"
+                                        }),
+                                        children: []
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            });
+        });
+        test('nested [x] with multiple types should throw an error', () => {
+            const elements = [
+                createElementDefinition('Patient'),
+                createElementDefinition('Patient.value[x]', [
+                    createType('CodeableConcept'),
+                    createType('string'),
+                ], 0, "1"),
+                createElementDefinition('Patient.value[x].coding', [
+                    createType('Coding'),
+                ], 0, "*"),
+            ];
+
+            expect(() => buildNodeTree(elements, 'resource')).toThrow('path Patient.value[x].coding has multiple type definitions of basePath: Patient.value');
         });
     });
 });

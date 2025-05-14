@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { loadNdjsonFile } from '../src/loader';
-import { writeFileSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
+import { unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { loadNdjsonFile } from '../src/loader';
 
 describe('loadNdjsonFile', () => {
     const testDir = tmpdir();
@@ -28,13 +28,14 @@ describe('loadNdjsonFile', () => {
         // Clean up test file
         try {
             unlinkSync(testFilePath);
-        } catch (error) {
+        } catch (_error) {
             // Ignore if file doesn't exist
         }
     });
 
     it('should load and parse an NDJSON file correctly', async () => {
         const stream = loadNdjsonFile(testFilePath);
+        // biome-ignore lint/suspicious/noExplicitAny: <explanation>
         const results: any[] = [];
 
         // Collect data from the stream
@@ -57,6 +58,7 @@ describe('loadNdjsonFile', () => {
         writeFileSync(testFilePath, ndjsonWithEmptyLines, 'utf8');
 
         const stream = loadNdjsonFile(testFilePath);
+        // biome-ignore lint/suspicious/noExplicitAny: <explanation>
         const results: any[] = [];
 
         // Collect data from the stream
@@ -108,6 +110,7 @@ describe('loadNdjsonFile', () => {
 
         try {
             const stream = loadNdjsonFile(relativeTestPath);
+            // biome-ignore lint/suspicious/noExplicitAny: <explanation>
             const results: any[] = [];
 
             // Collect data from the stream
@@ -122,7 +125,7 @@ describe('loadNdjsonFile', () => {
             // Clean up
             try {
                 unlinkSync(absoluteTestPath);
-            } catch (error) {
+            } catch (_error) {
                 // Ignore if file doesn't exist
             }
         }
