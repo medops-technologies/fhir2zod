@@ -119,7 +119,10 @@ export const processStructureDefinitions = (
     }
 
     // Generate an index file that exports all schemas
-    const indexFilePath = path.join(outputDir, 'index.js')
+    const indexFilePath = path.join(
+        outputDir,
+        `index${options.importExtension ? '.js' : '.ts'}`,
+    )
     let indexFileContent = '// Generated index file for FHIR Zod schemas\n\n'
 
     // Use the topological sort ordering for the index file
@@ -161,7 +164,10 @@ export const processStructureDefinitions = (
     console.info('Generated index file for all schemas')
 
     // Generate profileMap.ts file that maps URLs to schemas for constraint profiles
-    const profileMapFilePath = path.join(outputDir, 'profileMap.ts')
+    const profileMapFilePath = path.join(
+        outputDir,
+        `profileMap${options.importExtension ? '.js' : '.ts'}`,
+    )
     let profileMapContent =
         '// Generated profile map for constraint profiles\n\n'
     profileMapContent += 'import { z } from "zod";\n'
