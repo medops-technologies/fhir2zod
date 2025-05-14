@@ -8,7 +8,8 @@ type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>;
 
 describe('parseElementTypes', () => {
     // Helper function to create a type object
-    const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
         code,
         extension
     } as ElementDefinition['type'][0]);

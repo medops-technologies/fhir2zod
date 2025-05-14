@@ -9,7 +9,8 @@ type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>;
 
 describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
     // Helper to create an element definition
-    const createElement = (path: string, type?: any[], min = 0, max = "1"): ElementDefinition => ({
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        const createElement = (path: string, type?: any[], min = 0, max = "1"): ElementDefinition => ({
         path,
         type,
         min,
@@ -17,13 +18,15 @@ describe('constructZodSchemaCodeFromNodeTree - Cardinality Tests', () => {
     } as ElementDefinition);
 
     // Helper to create a type
-    const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
         code,
         extension
     } as ElementDefinition['type'][0]);
 
     // Helper to create a node
-    const createNode = (id: string, element: ElementDefinition, children: any[] = []): any => ({
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        const createNode = (id: string, element: ElementDefinition, children: any[] = []): any => ({
         id,
         element,
         children

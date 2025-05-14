@@ -113,6 +113,7 @@ describe('buildHasChildren', () => {
     })
 
     it('should handle empty input', () => {
+        // biome-ignore lint/suspicious/noExplicitAny: <explanation>
         const elements: any[] = []
         const result = buildHasChildren(elements)
         expect(result).toBeDefined()

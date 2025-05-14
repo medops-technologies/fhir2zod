@@ -8,7 +8,8 @@ type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>;
 
 describe('buildNodeTree', () => {
     // Helper function to create element definitions with minimal required properties
-    const createElementDefinition = (path: string, type?: any[], min = 0, max = "1"): ElementDefinition => ({
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
+        const createElementDefinition = (path: string, type?: any[], min = 0, max = "1"): ElementDefinition => ({
         path,
         min,
         max,

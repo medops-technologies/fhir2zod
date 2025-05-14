@@ -1,28 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod'
 import { testModules } from '../../src/merger'
-import { ElementDefinitionSchemaR4 } from '../../src/types/StructureDefinitions/r4'
 
 const { expandTree, buildTree, buildHasChildren, buildElementMap } = testModules
-type ElementDefinition = z.infer<typeof ElementDefinitionSchemaR4>
 
 describe('ExpandTree', () => {
-    const createType = (code: string, extension?: any[]): ElementDefinition['type'][0] => ({
-        code,
-        extension
-    } as ElementDefinition['type'][0]);
-
-    // Helper function to create an extension for FHIR type
-    const createFhirTypeExtension = (valueUrl: string) => ({
-        url: "http://hl7.org/fhir/StructureDefinition/structuredefinition-fhir-type",
-        valueUrl
-    });
-
-    // Helper function to create a non-FHIR extension
-    const createOtherExtension = (url: string, valueString: string) => ({
-        url,
-        valueString
-    });
 
     // テスト用のモックデータ
     const createElementDefinition = (path: string, min = 0, max = "1", type = [{ code: 'Element' }]) => ({
@@ -42,6 +23,7 @@ describe('ExpandTree', () => {
         ]
     })
 
+    // biome-ignore lint/suspicious/noExplicitAny: <explanation>
     const createStructureDefinition = (id: string, type: string, elements: any[]) => ({
         resourceType: 'StructureDefinition' as const,
         id,
